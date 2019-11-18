@@ -34,8 +34,8 @@ typedef struct SecretShareSt
 
 typedef struct SecretSliceSt
 {
-    SK secret_1;
-    SK secret_2;
+    SK *secret_1;
+    SK *secret_2;
 }secretSliceSt;
 
 typedef struct PedersenSt
@@ -49,19 +49,21 @@ class PedersenVSS
 public:
     PedersenVSS();
     
-    void share_secret(unsigned int threshold, unsigned int shareCount, SK secretkey, vector<secretSliceSt>& slicesVector);
+    void share_secret(unsigned int threshold, unsigned int shareCount, SK secretkey, vector<secretSliceSt>& slicesVector,vector<unsigned int>& vectIndex);
     
     void sample_polynomial(unsigned int t, vector<BIGNUM>& vectCoeff);
     
     void evaluate_polynomial(vector<BIGNUM> vectCoeff, vector<unsigned int> vectShared, vector<BIGNUM>& secretShare);
     
-    void validate_secret(unsigned int index, secretSliceSt secret);
+    int validate_secret(unsigned int index, secretSliceSt secret);
     
-    void reconstruct_secret(vector<SK> slicesVector, SK& secret);
+    void reconstruct_secret(vector<unsigned int> vectShared,vector<SK> slicesVector, SK& secret);
     
     void genBasePoint_H(PK& pointH);
     
     void genNewBasePoint(PK& pointBase);
+    
+    int reconstruct_limit();
 
 private:
     BIGNUM* converIntToBig(unsigned int num);
@@ -84,7 +86,7 @@ PedersenVSS::PedersenVSS()
     
 }
 
-void PedersenVSS::share_secret(unsigned int threshold, unsigned int shareCount, SK secretkey, vector<secretSliceSt> &slicesVector)
+void PedersenVSS::share_secret(unsigned int threshold, unsigned int shareCount, SK secretkey, vector<secretSliceSt> &slicesVector, vector<unsigned int>& vectIndex)
 {
     //1 generate two list coefficient a(i)=>(a0, a1, a2,..., at)  b(i) => (b0, b1, ...bt)
     // t is threshold  a0 = secretkey f(x) = at*x^t +.. +a1*x+a0   g(x) = bt*x^t + ...+b1*x+ b0
@@ -102,10 +104,13 @@ void PedersenVSS::share_secret(unsigned int threshold, unsigned int shareCount, 
     sample_polynomial(threshold, vectCoffi_b);
     
     //secretIndex is [1,2, ...,n] n is shareCount
-    vector<unsigned int> vectIndex;
+    //vector<unsigned int> vectIndex;
     for (int i = 0; i < shareCount; i++) {
         vectIndex.push_back(i+1);
     }
+    
+    m_pedesen.secretSh.threshold = threshold;
+    m_pedesen.secretSh.share_count = shareCount;
 
     
     //2 compute secretslice is {f(xi), g(xi)} i=>(1,2,3....n) n is sharecount
@@ -117,8 +122,10 @@ void PedersenVSS::share_secret(unsigned int threshold, unsigned int shareCount, 
     
     for (int i = 0; i < vectorSecret_a.size(); i++) {
         secretSliceSt secretst;
-        BN_copy(&secretst.secret_1, &vectorSecret_a[i]);
-        BN_copy(&secretst.secret_2, &vectorSecret_b[i]);
+        secretst.secret_1 = BN_new();
+        secretst.secret_2 = BN_new();
+        BN_copy(secretst.secret_1, &vectorSecret_a[i]);
+        BN_copy(secretst.secret_2, &vectorSecret_b[i]);
         slicesVector.push_back(secretst);
     }
     
@@ -139,22 +146,132 @@ void PedersenVSS::share_secret(unsigned int threshold, unsigned int shareCount, 
         EC_SM2_POINT_free(qTemp);
     }
     
-    
-    
 }
 
-void PedersenVSS::validate_secret(unsigned int index, secretSliceSt secretst)
+//validate every seccret slice
+int PedersenVSS::validate_secret(unsigned int index, secretSliceSt secretst)
 {
-    //validate every seccret slice
-    
     //check f(k)*G + g(k)*H is equal to ((comm(t)*k + comm(t-1))*k+ ...)*k+com(0)
+    
+    printBigNum(*secretst.secret_1);
+    
+    //1、compute secretslice1*G + secretslice2*H
+    
+    EC_SM2_POINT *secretPointf = EC_SM2_POINT_new();
+    EC_SM2_POINT *secretPointg = EC_SM2_POINT_new();
+    EC_SM2_POINT *secretPoint = EC_SM2_POINT_new();
+    
+    EC_SM2_POINT_mul(group, secretPointf, secretst.secret_1, G);
+    EC_SM2_POINT_mul(group, secretPointg, secretst.secret_2, m_pointH);
+    
+    EC_SM2_POINT_add(group, secretPoint, secretPointf, secretPointg);
+    EC_SM2_POINT_affine2gem(group, secretPoint, secretPoint);
+    
+    printECPoint(secretPoint);
+    
+    //2、compute commit using hornor-rule
+    int n = m_pedesen.commitments.size();
+    EC_SM2_POINT *result = EC_SM2_POINT_new();
+    EC_SM2_POINT_copy(result, &m_pedesen.commitments[n-1]);
+    BIGNUM *indexNum = converIntToBig(index);
+    EC_SM2_POINT *temP = EC_SM2_POINT_new();
+    for (int i = 1; i <= n-1; i++) {
+        EC_SM2_POINT_mul(group, temP, indexNum, result);
+        EC_SM2_POINT_add(group, result, temP, &m_pedesen.commitments[n-1-i]);
+    }
+    
+    EC_SM2_POINT_affine2gem(group, result, result);
+    
+    printECPoint(result);
+    
+    
+    //3、check result is equal to secretpoint
+    int ret = EC_SM2_POINT_cmp(secretPoint, result);
+    if(ret != 0)
+    {
+        printf(" validate index %d failed ..\n", index);
+    }
+    else
+    {
+        printf(" validate index %d success  ..\n", index);
+    }
+    
+    EC_SM2_POINT_free(temP);
+    EC_SM2_POINT_free(secretPoint);
+    EC_SM2_POINT_free(secretPointf);
+    EC_SM2_POINT_free(secretPointg);
+    EC_SM2_POINT_free(result);
+    BN_free(indexNum);
+    
+    return ret;
 }
 
-void PedersenVSS::reconstruct_secret(vector<SK> slicesVector, SK& secret)
+void PedersenVSS::reconstruct_secret(vector<unsigned int> vectShared,vector<SK> slicesVector, SK& secret)
 {
     //using lagrange inter-po reconstruct sccretkey
     // i =>(1, 2, ..n)   input: (xi , f(xi))
     //compute sum(f(xi)*(mul(xi/(xi-xj)) while (i !=j j =>{1, 2, ..n})))  is secretkey
+    
+    int  slice_n = slicesVector.size();
+    int i = 0;
+    vector<BIGNUM> vectIndexBig;
+    // 1、check slice num > threshold
+    if(slice_n < reconstruct_limit())
+    {
+        return ;
+    }
+    
+    //1、Conver to bigNum
+    for(i = 0; i < slice_n; i++)
+    {
+        BIGNUM *bigNum = converIntToBig(vectShared[i]);
+        vectIndexBig.push_back(*bigNum);
+    }
+    
+    //2、according to lagrange Interpolation compute f(x) = （f(xi)*((x-xj)/(xi-xj)** while(j!=i,j=>{0,n})) ++ while i=>{0,n})
+    //then compute secret = f(0)
+    BIGNUM *sum = converIntToBig(0);
+    
+    for(i = 0; i < slice_n; i++)
+    {
+        BIGNUM *num = converIntToBig(1); //分子的乘积
+        BIGNUM *denom = converIntToBig(1); //分母的乘积
+        BIGNUM *temp = BN_new();
+        
+        for(int j = 0; j < slice_n; j++)
+        {
+            if(i != j)
+            {
+                BN_mul(num, &vectIndexBig[j], num, ctx); //分子累计
+                
+                BN_sub(temp, &vectIndexBig[j], &vectIndexBig[i]);//分母相减后累积
+                BN_mul(denom, temp, denom, ctx);
+            }
+        }
+        
+        BN_mul(temp, num, &slicesVector[i], ctx); //然后乘以 secretslice
+        
+        BN_div(temp, NULL, temp, denom, ctx); //分子除以分母
+        
+        BN_add(sum, sum, temp);  //累加和
+        
+        BN_free(temp);
+        BN_free(num);
+        BN_free(denom);
+    }
+    
+    BN_nnmod(sum, sum, N, ctx);
+    
+    BN_copy(&secret, sum);
+    
+    BN_free(sum);
+    
+    
+}
+
+int PedersenVSS::reconstruct_limit()
+{
+    return m_pedesen.secretSh.threshold + 1;
 }
 
 void PedersenVSS::sample_polynomial(unsigned int t, vector<BIGNUM>& vectCoeff)
@@ -163,7 +280,7 @@ void PedersenVSS::sample_polynomial(unsigned int t, vector<BIGNUM>& vectCoeff)
     
     while (i < t) {
         BIGNUM *bigNum = BN_new();
-        if(!genRandomBigNum(bigNum))
+        if(FALSE == genRandomBigNum(bigNum))
         {
             break;
         }
@@ -437,13 +554,124 @@ BIGNUM *PedersenVSS::converIntToBig(unsigned int num)
     return bigNum;
 }
 
+void test_pedersen_1_of_2()
+{
+    unsigned char szSecret[35] = {0};
+    vector<secretSliceSt> vectSec;
+    vector<unsigned int> vectIndex;
+    BIGNUM *bignum = BN_new();
+
+    printf(" test pedersen vss 1 out of 2  begin \n");
+    
+    rng(256, szSecret);
+    BN_bin2bn(szSecret, g_uNumbits/8, bignum);
+    
+    printBigNum(*bignum);
+    
+    PedersenVSS pvss;
+    
+    pvss.share_secret(1, 2, *bignum, vectSec, vectIndex);
+    
+    //printOutSec(vectSec);
+    
+    pvss.validate_secret(vectIndex[0], vectSec[0]);
+    pvss.validate_secret(vectIndex[1], vectSec[1]);
+    
+    
+    BIGNUM *reconBig = BN_new();
+    
+    vector<unsigned int> indexRecon;
+    vector<BIGNUM> secretSliceRecon;
+    
+    indexRecon.push_back(vectIndex[0]);
+    secretSliceRecon.push_back(*vectSec[0].secret_1);
+    indexRecon.push_back(vectIndex[1]);
+    secretSliceRecon.push_back(*vectSec[1].secret_1);
+    
+    pvss.reconstruct_secret(indexRecon, secretSliceRecon, *reconBig);
+    
+    
+    printBigNum(*reconBig);
+    
+    if(BN_cmp(bignum, reconBig))
+    {
+        printf(" reconstruct secret failed ... \n");
+    }
+    else
+    {
+        printf(" reconstruct secret success ... \n");
+    }
+    
+    printf(" test pedesen vss 1 out of 2  end \n");
+
+}
+
+void test_pedersen_3_out_of_6()
+{
+    unsigned char szSecret[35] = {0};
+    vector<secretSliceSt> vectSec;
+    vector<unsigned int> vectIndex;
+    BIGNUM *bignum = BN_new();
+    
+    
+    printf(" test pedersen vss 3 out of 6  begin \n");
+    
+    rng(256, szSecret);
+    BN_bin2bn(szSecret, g_uNumbits/8, bignum);
+    
+    printBigNum(*bignum);
+    
+    PedersenVSS fvss;
+    
+    fvss.share_secret(3, 6, *bignum, vectSec,vectIndex);
+    
+    
+    fvss.validate_secret(vectIndex[0], vectSec[0]);
+    fvss.validate_secret(vectIndex[1], vectSec[1]);
+    fvss.validate_secret(vectIndex[2], vectSec[2]);
+    fvss.validate_secret(vectIndex[3], vectSec[3]);
+    fvss.validate_secret(vectIndex[4], vectSec[4]);
+    fvss.validate_secret(vectIndex[5], vectSec[5]);
+
+    
+    BIGNUM *reconBig = BN_new();
+    
+    vector<unsigned int> indexRecon;
+    vector<BIGNUM> secretSliceRecon;
+    
+    //indexRecon.push_back(vectIndex[0]);
+    //secretSliceRecon.push_back(vectSec[0]);
+    indexRecon.push_back(vectIndex[1]);
+    secretSliceRecon.push_back(*vectSec[1].secret_1);
+    indexRecon.push_back(vectIndex[2]);
+    secretSliceRecon.push_back(*vectSec[2].secret_1);
+    indexRecon.push_back(vectIndex[3]);
+    secretSliceRecon.push_back(*vectSec[3].secret_1);
+    indexRecon.push_back(vectIndex[4]);
+    secretSliceRecon.push_back(*vectSec[4].secret_1);
+    
+    fvss.reconstruct_secret(indexRecon, secretSliceRecon, *reconBig);
+    
+    
+    printBigNum(*reconBig);
+    
+    if(BN_cmp(bignum, reconBig))
+    {
+        printf(" reconstruct secret failed ... \n");
+    }
+    else
+    {
+        printf(" reconstruct secret success ... \n");
+    }
+    
+    printf(" test pedersen vss 3 out of 6  end \n");
+}
+
+
 void test_Pedersen_vss()
 {
-    PedersenVSS pvss;
-    EC_SM2_POINT *pointH = EC_SM2_POINT_new();
+    test_pedersen_1_of_2();
     
-    pvss.genBasePoint_H(*pointH);
-    
-    //pvss.genNewBasePoint(*pointH);
+    test_pedersen_3_out_of_6();
 }
 

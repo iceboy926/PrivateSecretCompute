@@ -12,14 +12,18 @@
 #include "ec_operations.h"
 #include "bn_operations.h"
 #include "rand.h"
-#include "sm3.h"
 #include "sm2.h"
+#include "sm3.h"
+#include "sm4.h"
+#include "kdf.h"
+#include "jvcrypto.h"
 
 #define PK EC_SM2_POINT
 #define SK BIGNUM
 
 extern void print_hex(uint8_t *label, uint8_t *data, uint16_t data_len);
 extern void printECPoint(EC_SM2_POINT *point);
+void printBigNum(BIGNUM big);
 
 typedef struct SecretShareSt
 {
@@ -56,6 +60,8 @@ public:
     void reconstruct_secret(vector<SK> slicesVector, SK& secret);
     
     void genBasePoint_H(PK& pointH);
+    
+    void genNewBasePoint(PK& pointBase);
 
 private:
     BIGNUM* converIntToBig(unsigned int num);
@@ -117,6 +123,21 @@ void PedersenVSS::share_secret(unsigned int threshold, unsigned int shareCount, 
     }
     
     //3 compute pedersen commitment comm(i) = (a(i)*G + b(i)*H) while i => (0,1,2..t) t is threshold
+    
+    for(int i = 0; i < vectCoffi_a.size(); i++)
+    {
+        EC_SM2_POINT *pTemp = EC_SM2_POINT_new();
+        EC_SM2_POINT *qTemp = EC_SM2_POINT_new();
+        
+        EC_SM2_POINT_mul(group, pTemp, &vectCoffi_a[i], G);
+        EC_SM2_POINT_mul(group, qTemp, &vectCoffi_b[i], m_pointH);
+        
+        EC_SM2_POINT_add(group, pTemp, pTemp, qTemp);
+        
+        m_pedesen.commitments.push_back(*pTemp);
+        
+        EC_SM2_POINT_free(qTemp);
+    }
     
     
     
@@ -235,6 +256,136 @@ void PedersenVSS::genBasePoint_H(PK& pointH)
     {
         printf(" H is not curve \n");
     }
+}
+
+void PedersenVSS::genNewBasePoint(PK& pointBase)
+{
+    unsigned char szPubkey[65] = {0};
+    unsigned char szHash[32] = {0};
+    unsigned char szNewData[32] = {0};
+    
+    BIGNUM *x =BN_new();
+    BIGNUM *y = BN_new();
+    BIGNUM *db = BN_new();
+    BIGNUM *tmp = BN_new();
+    BIGNUM *right = BN_new();
+    const BIGNUM *p=&(group->p);
+    BIGNUM *one = BN_new();
+    BIGNUM *two = BN_new();
+    EC_SM2_POINT *Qa = EC_SM2_POINT_new();
+    int count = 0;
+    
+    EC_SM2_POINT_get_point(G, x, y, db);
+    
+    BN_hex2bn(&db, "04");
+    BN_lshift(db, db, 256);
+    BN_add(db, db, x);
+    
+    BN_lshift(db, db, 256);
+    BN_add(db, db, y);
+    
+    BN_bn2bin(db, szPubkey);
+    
+HashData:
+    
+    if(count == 0)
+    {
+       SM3(szPubkey+1, 64, szHash);
+    }
+    else
+    {
+        memcpy(szNewData, szHash, 32);
+        SM3(szNewData, 32, szHash);
+    }
+    
+    //
+    BN_bin2bn(szHash, sizeof(szHash), x);
+    
+    //check y^2 = x^3 + a*x + b;
+    
+    BN_mod_sqr(tmp, x, p, ctx);
+    BN_mod_mul(tmp, tmp, x, p, ctx);
+    
+    BN_copy(right, tmp);
+    
+    /* tmp := ax */
+    BN_mod_mul(tmp,&group->a,x,p,ctx);
+    
+    /* x^3+ax+b */
+    BN_mod_add(right, right, tmp, p, ctx);
+    BN_mod_add(right, right,&group->b, p, ctx);
+    //BN_nnmod(right, right, N, ctx);
+    
+    printBigNum(*right);
+    
+    //according to newton iteration compute square root
+    
+    BIGNUM *bigRes = BN_new();
+    BIGNUM *bigLast = BN_new();
+    
+    // res = 0, last = 1
+    genRandomBigNum(bigRes);
+    genRandomBigNum(bigLast);
+    BN_hex2bn(&two,"2");
+    
+    while (BN_cmp(bigRes, bigLast) != 0) {
+        
+        BN_copy(bigLast, bigRes);
+        
+        // res = (res + x/res)/2 = (res*res + x)/2*res
+    
+
+        BN_div(tmp, NULL, right, bigRes, ctx);
+        BN_add(tmp, bigRes, tmp);
+        BN_div(bigRes,NULL, tmp,two,ctx);
+ 
+        //BN_nnmod(bigRes, bigRes, N, ctx);
+        
+        printf(" big res is :\n");
+        printBigNum(*bigRes);
+        
+        
+        printf(" big last is :\n");
+        printBigNum(*bigLast);
+    
+    }
+    
+    BN_copy(y, bigRes);
+    
+    //compute y^2
+     BN_mod_sqr(tmp, y, p, ctx);
+    
+    printBigNum(*tmp);
+    
+    if(BN_cmp(right, tmp) == 0)
+    {
+        printf("find the y \n");
+    }
+    else
+    {
+        printf("not find \n");
+    }
+    
+    
+    //check x,y is on the curve
+    
+    BN_hex2bn(&one,"1");
+    
+    EC_SM2_POINT_set_point(Qa,x,y,one);
+    EC_SM2_POINT_affine2gem(group, Qa, Qa);
+    
+    int ret = EC_SM2_POINT_is_on_curve(group, Qa);
+    if(ret == 0)
+    {
+        printf(" new point base is on curve \n");
+    }
+    else
+    {
+        printf(" point is not on curve \n");
+         count++;
+        goto HashData;
+    }
+    
     
 }
 
@@ -286,13 +437,13 @@ BIGNUM *PedersenVSS::converIntToBig(unsigned int num)
     return bigNum;
 }
 
-
-
 void test_Pedersen_vss()
 {
     PedersenVSS pvss;
     EC_SM2_POINT *pointH = EC_SM2_POINT_new();
     
     pvss.genBasePoint_H(*pointH);
+    
+    //pvss.genNewBasePoint(*pointH);
 }
 

@@ -105,18 +105,121 @@ generate_d:
 
 int schnorr_sign(unsigned char *plain, unsigned int plainlen, unsigned char *prikey, unsigned int prikeylen, unsigned char *sign, unsigned int *signlen)
 {
+    unsigned char*    pTemp_r = NULL;
+    BIGNUM         *N;
+    BIGNUM        *kr, *kt;
+    BIGNUM        *x;
+    BIGNUM        *y;
+    BIGNUM        *k;
+    BIGNUM        *h;
+    BN_CTX         *ctx;
+    EC_SM2_POINT *R,*P;
+    unsigned char hash[32] = {0};
+    
+    if(plain == NULL || prikey == NULL || signlen == NULL)
+    {
+        return 1;
+    }
+    
+    N = BN_new();
+    kr = BN_new();
+    kt = BN_new();
+    k = BN_new();
+    x = BN_new();
+    y = BN_new();
+    h = BN_new();
+    ctx= BN_CTX_new();
+    R = EC_SM2_POINT_new();
+    P = EC_SM2_POINT_new();
+    pTemp_r = (unsigned char*)malloc(256);
+    
+    if ( kr== NULL || ctx == NULL || pTemp_r == NULL )
+    {
+        return 1;
+    }
+    EC_SM2_GROUP_get_order(group, N);
     
     //1、choose random r, compute R = r*G
     
+generate_d:
     
-    //2、compute Rx = R(x)Hashdata : H(m,Rx)=>h
+    if(rng(g_uNumbits, pTemp_r))
+    {
+        return 1;
+    }
+    BN_bin2bn(pTemp_r, g_uNumbits/8, kr);
+    BN_nnmod(kr, kr, N, ctx);
+    
+    if( BN_is_zero(kr) )
+    {
+        goto generate_d;
+    }
+    
+    //get R = r*G
+    EC_SM2_POINT_mul(group, R, kr, G);
+    EC_SM2_POINT_affine2gem(group, R, R);
+    
+    
+    //2、compute Rx = R(x)Hashdata : H(Rx||P||m)=>h
+    unsigned char *pData = malloc(plainlen + 128);
+    unsigned int datalen = 0;
+    if(pData == NULL)
+    {
+        return 1;
+    }
+    // Rx
+    EC_SM2_POINT_get_point(R, x, y, kt);
+    BN_bn2bin(x, pData);
+    datalen = g_uNumbits/8;
+    
+    //P
+    BN_bin2bn(prikey, prikeylen, k);
+    EC_SM2_POINT_mul(group, P, k, G);
+    EC_SM2_POINT_affine2gem(group, P, P);
+    EC_SM2_POINT_get_point(P, x, y, kt);
+    BN_lshift(kt, x, g_uNumbits);
+    BN_lshift(kt, kt, g_uNumbits);
+    BN_add(kt, kt, y);
+    BN_bn2bin(kt, pData+datalen);
+    datalen += g_uNumbits/4;
+    
+    //plain text
+    memcpy(pData + datalen, plain, plainlen);
+    datalen += plainlen;
+    
+    //compute sm3 hash
+    SM3(pData, datalen, hash);
+    
+    //convert to bignum h
+    BN_bin2bn(hash, 32, h);
     
     
     //3、compute S = r + h*k  (k is prikey)
-    
+    BN_mul(kt, k, h, ctx);
+    BN_add(kt, kt, kr);
+    BN_nnmod(kt, kt, N, ctx);
+
     
     //4、signature is (Rx, S)
+    memcpy(sign, pData, g_uNumbits/8);
+    BN_bn2bin(kt, sign+g_uNumbits/8);
     
+    *signlen = g_uNumbits/4;
+    
+    free(pTemp_r);
+    free(pData);
+    
+    BN_free(N);
+    BN_free(kt);
+    BN_free(kr);
+    BN_free(k);
+    BN_free(h);
+    BN_free(x);
+    BN_free(y);
+    EC_SM2_POINT_free(P);
+    EC_SM2_POINT_free(R);
+    BN_free(kt);
+    BN_CTX_free(ctx);
     
     return 0;
 }
@@ -126,7 +229,7 @@ int schnorr_verify(unsigned char *plain, unsigned int plainlen, unsigned char *s
     
     //convert sign to (Rx, S)  plain is m  pubkey is P
     
-    //1、compute h = H(m,Rx)
+    //1、compute h = H(Rx||P||m)
     
     //2、 compute (x,y) = S*G - h*P
     

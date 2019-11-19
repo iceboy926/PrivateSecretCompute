@@ -7,11 +7,20 @@
 //  Copyright © 2019年 zuoyongyong. All rights reserved.
 //
 
-#ifndef schnorr_sign_h
-#define schnorr_sign_h
+#ifndef __SINGEL_SCHNORR_
+#define __SINGEL_SCHNORR_
 
+
+#ifdef __cplusplus
+extern "C" {
+#endif
+    
 #include <stdio.h>
 
 void test_schnorr_sign_verify(void);
 
-#endif /* schnorr_sign_h */
+#ifdef __cplusplus
+}
+#endif
+
+#endif

@@ -21,6 +21,16 @@
 #include "kdf.h"
 #include "jvcrypto.h"
 
+extern void print_hex(uint8_t *label, uint8_t *data, uint16_t data_len);
+extern void printECPoint(EC_SM2_POINT *point);
+void printBigNum(BIGNUM big)
+{
+    char *str;
+    str = BN_bn2hex(&big);
+    printf("bignum is : %s\n",str);
+    free(str);
+}
+
 
 int schnorr_genkeypair(unsigned char *prikey, unsigned int *prikeylen, unsigned char *pubkey, unsigned int *pubkeylen)
 {
@@ -172,16 +182,19 @@ generate_d:
     BN_bn2bin(x, pData);
     datalen = g_uNumbits/8;
     
-    //P
+    printBigNum(*x);
+    
+    
+    //compose pubkey P
     BN_bin2bn(prikey, prikeylen, k);
     EC_SM2_POINT_mul(group, P, k, G);
     EC_SM2_POINT_affine2gem(group, P, P);
     EC_SM2_POINT_get_point(P, x, y, kt);
-    BN_lshift(kt, x, g_uNumbits);
-    BN_lshift(kt, kt, g_uNumbits);
-    BN_add(kt, kt, y);
-    BN_bn2bin(kt, pData+datalen);
-    datalen += g_uNumbits/4;
+    BN_bn2bin(x, pData+datalen);
+    datalen += g_uNumbits/8;
+    BN_bn2bin(y, pData+datalen);
+    datalen += g_uNumbits/8;
+    
     
     //plain text
     memcpy(pData + datalen, plain, plainlen);
@@ -196,6 +209,7 @@ generate_d:
     
     //3、compute S = r + h*k  (k is prikey)
     BN_mul(kt, k, h, ctx);
+    BN_nnmod(kt, kt, N, ctx);
     BN_add(kt, kt, kr);
     BN_nnmod(kt, kt, N, ctx);
 
@@ -218,7 +232,6 @@ generate_d:
     BN_free(y);
     EC_SM2_POINT_free(P);
     EC_SM2_POINT_free(R);
-    BN_free(kt);
     BN_CTX_free(ctx);
     
     return 0;
@@ -226,15 +239,135 @@ generate_d:
 
 int schnorr_verify(unsigned char *plain, unsigned int plainlen, unsigned char *sign, unsigned int signlen, unsigned char *pubkey, unsigned int pubkeylen)
 {
+    unsigned char hash[32] = {0};
+    BIGNUM *s, *h;
+    BIGNUM *x, *y;
+    BIGNUM *N, *one;
+    BN_CTX         *ctx;
+    EC_SM2_POINT *R,*P;
+    unsigned char szRx[32] = {0};
     
     //convert sign to (Rx, S)  plain is m  pubkey is P
+    if(plain == NULL || sign == NULL || pubkey == NULL || signlen != 64)
+    {
+        return 1;
+    }
     
+    s = BN_new();
+    h = BN_new();
+    x = BN_new();
+    y = BN_new();
+    N = BN_new();
+    one = BN_new();
+    ctx = BN_CTX_new();
+    R = EC_SM2_POINT_new();
+    P = EC_SM2_POINT_new();
+
     //1、compute h = H(Rx||P||m)
+    unsigned char *pData = malloc(plainlen + 128);
+    unsigned int datalen = 0;
+    if(pData == NULL)
+    {
+        return 1;
+    }
+    
+    memcpy(pData, sign, 32);
+    datalen = 32;
+    memcpy(pData + datalen, pubkey, pubkeylen);
+    datalen += pubkeylen;
+    memcpy(pData + datalen, plain, plainlen);
+    datalen += plainlen;
+    
+    SM3(pData, datalen, hash);
+    
     
     //2、 compute (x,y) = S*G - h*P
+    EC_SM2_GROUP_get_order(group, N);
+    BN_bin2bn(hash, 32, h);
+
+    
+    BN_bin2bn(sign+32, 32, s);
+    
+    BN_bin2bn(pubkey, pubkeylen/2, x);
+    BN_bin2bn(pubkey+pubkeylen/2, pubkeylen/2, y);
+    BN_hex2bn(&one, "01");
+    EC_SM2_POINT_set_point(P, x, y, one);
+    
+    EC_SM2_POINT_mul(group, R, s, G);
+    EC_SM2_POINT_mul(group, P, h, P);
+    
+    EC_SM2_POINT_sub(group, R, R, P);
+    EC_SM2_POINT_affine2gem(group, R, R);
+    
+    EC_SM2_POINT_get_point(R, x, y, s);
     
     //3、compare x is equal to Rx
     
-    return 0;
+    BN_bn2bin(x, szRx);
+    
+    if(memcmp(szRx, sign, 32) == 0)
+    {
+        printf(" verify sign success .... \n");
+        return 0;
+    }
+    else
+    {
+        printf("verify sign failed ...\n");
+        return 1;
+    }
+}
+
+
+void test_schnorr_sign_verify()
+{
+    unsigned char *plaintxt = "this is test plain";
+    unsigned int plainlen = strlen(plaintxt);
+    
+    unsigned char prikey[32]  = {0};
+    unsigned int prikeylen = sizeof(prikey);
+    
+    unsigned char pubkey[65] = {0};
+    unsigned int pubkeylen = sizeof(pubkey);
+    
+    unsigned char signData[100] = {0};
+    unsigned int signlen = sizeof(signData);
+    
+    int ret = 0;
+    
+    sm2_init();
+    
+    ret = schnorr_genkeypair(prikey, &prikeylen, pubkey, &pubkeylen);
+   if(ret != 0)
+    {
+        printf(" schnorr genkey pair failed ...\n");
+        return ;
+    }
+    
+    print_hex((uint8_t *)"prikey is ", prikey, prikeylen);
+    print_hex((uint8_t *)"pubkey is ", pubkey, pubkeylen);
+    
+    printf(" schnorr gen pair success .. \n");
+    
+    ret = schnorr_sign(plaintxt, plainlen, prikey, prikeylen, signData, &signlen);
+    if(ret != 0)
+    {
+        printf(" schnorr sign data failed .... \n");
+        return ;
+    }
+    
+    print_hex((uint8_t *)"sign is ", signData, signlen);
+    
+    printf("schnorr sign data success \n");
+    
+    ret = schnorr_verify(plaintxt, plainlen, signData, signlen, pubkey+1, pubkeylen-1);
+    if(ret != 0)
+    {
+        printf("schnorr verify data failed ...\n");
+        return ;
+    }
+    
+    printf("schnorr verify data success \n");
+
+    return ;
 }
 

@@ -12,4 +12,6 @@
 
 #include <stdio.h>
 
+void test_schnorr_sign_verify(void);
+
 #endif /* schnorr_sign_h */

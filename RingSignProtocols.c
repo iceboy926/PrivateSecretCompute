@@ -40,3 +40,8 @@ void ringVerifySign(unsigned char* plain, unsigned int plainlen, unsigned char *
     //3、 compare c‘0 is equal to c0 to complate verify signature
     
 }
+
+void test_Ring_Sign()
+{
+    
+}

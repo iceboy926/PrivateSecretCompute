@@ -9,6 +9,18 @@
 #ifndef RingSignProtocols_h
 #define RingSignProtocols_h
 
-#include <stdio.h>
+#ifdef __cplusplus
+extern "C" {
+#endif
+
+     #include <stdio.h>
+    
+    void test_Ring_Sign(void);
+    
+    
+#ifdef __cplusplus
+}
+#endif
+
 
 #endif /* RingSignProtocols_h */

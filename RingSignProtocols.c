@@ -35,7 +35,8 @@ void ringVerifySign(unsigned char* plain, unsigned int plainlen, unsigned char *
 {
     //1、 convert sign to {c0, s0, s1, ..., sn-1}    convert all pubkey to {A0, A1,....,An-2, An-1}
     
+    //2、 according to formual ci = Hash(m||si-1*G + ci-1*Ai-1) compute c1,c2, ...cn-1 then wo get c’0
     
-    //2、
+    //3、 compare c‘0 is equal to c0 to complate verify signature
     
 }

@@ -46,6 +46,28 @@ unsigned int gen_randomBit(unsigned int n)
     return randombit;
 }
 
+void gen_randomBytes(unsigned char *data, unsigned int len)
+{
+    int i = 0;
+    
+    while (i < len) {
+        unsigned int* seed = malloc( sizeof( unsigned int ) );
+        FILE* file = fopen("/dev/random", "r");
+        //printf( "%d \n", sizeof( unsigned long ) );
+        fread( seed, 1, sizeof( unsigned int ), file );
+        //printf(" dev random is 0x%x \n", *seed%0xFF);
+        *(data+i) = (*seed)%0xFF;
+        if(seed)
+        {
+            free(seed);
+            seed = NULL;
+        }
+        fclose(file);
+        
+        i++;
+    }
+}
+
 int sm2_ot_genkey(unsigned int random_bit, unsigned char *input_pubkey, unsigned int input_pubkey_len, unsigned char *prikey, unsigned int *prikey_len, unsigned char *pubkey, unsigned int *pubkey_len)
 {
     
@@ -266,6 +288,11 @@ int gen_decrypt_key(unsigned char *b_prikey, unsigned int b_prikey_len, unsigned
     // hash out data
     SM3(ba_pubkey, ba_pubkey_len, outdata);
     
+    for(int i = 0; i < 16; i++)
+    {
+        outdata[i] ^= outdata[i+16];
+    }
+    
     
     //free resouce
     BN_free(N);
@@ -393,6 +420,11 @@ int derive_key(unsigned int index, unsigned char *a_prikey, unsigned int a_prike
     // hash out data
     SM3(ab_pubkey, ab_pubkey_len, outdata);
     
+    for(int i = 0; i < 16; i++)
+    {
+        outdata[i] ^= outdata[i+16];
+    }
+    
     
     //free resouce
     BN_free(N);
@@ -413,7 +445,7 @@ int derive_key(unsigned int index, unsigned char *a_prikey, unsigned int a_prike
 
 // 1 out of 2 oblivious transfer
 
-void test_one_of_two_oblivious_transfer()
+void test_one_of_two_oblivious_transfer(unsigned char *plainText_0,unsigned int plain0_len,unsigned char *plainText_1,unsigned int plain1_len,unsigned int choosebit,unsigned char *receivePlain)
 {
     unsigned char a_prikey[32] = {0};
     unsigned int a_prikey_len = 32;
@@ -426,8 +458,8 @@ void test_one_of_two_oblivious_transfer()
     int ret = 0;
     unsigned int randombit = 0;
     
-    unsigned char *plainText_0 = "the plain 0 text is one";
-    unsigned char *plainText_1 = "the plain 1 text is two";
+    //unsigned char *plainText_0 = "the plain 0 text is one";
+    //unsigned char *plainText_1 = "the plain 1 text is two";
     
     unsigned char cryptkey_0[32] = {0};
     unsigned char cryptkey_1[32] = {0};
@@ -458,11 +490,11 @@ void test_one_of_two_oblivious_transfer()
     
     
     //2、 A send pubkey_a to b,  B random choose {0, 1} send pubkey_b or (pubkey_b + pubkey_a) to a
-    randombit = gen_randomBit(2);
+    randombit = choosebit;//gen_randomBit(2);
     
     printf("B Choose random bit is %d \n", randombit);
     
-    //b gen random from {0, 1}
+    //b gen one random bit from {0, 1}
     ret = sm2_ot_genkey(randombit, a_pubkey, a_pubkey_len, b_prikey, &b_prikey_len, b_pubkey, &b_pubkey_len);
     if(ret != 0)
     {
@@ -479,7 +511,7 @@ void test_one_of_two_oblivious_transfer()
         return ;
     }
     
-    print_hex((uint8_t *)"cryptkey_0 is ", cryptkey_0, 32);
+    print_hex((uint8_t *)"cryptkey_0 is ", cryptkey_0, 16);
     
     ret = derive_key(1, a_prikey, a_prikey_len, a_pubkey, a_pubkey_len, b_pubkey, b_pubkey_len, cryptkey_1);
     if(ret != 0)
@@ -488,17 +520,17 @@ void test_one_of_two_oblivious_transfer()
         return ;
     }
     
-    print_hex((uint8_t *)"cryptkey_1 is ", cryptkey_1, 32);
+    print_hex((uint8_t *)"cryptkey_1 is ", cryptkey_1, 16);
     
     //4、A encrypt plainText_i use Ki while i =>{0, 1}   E0 = E(plain_0, K0) && E1 = E(plain_1, K1)
-    ret = sm4_enc(cryptkey_0, 32, (unsigned char *)plainText_0, strlen(plainText_0), (unsigned char *)cipherText_0, &cipher_len_0);
+    ret = sm4_enc(cryptkey_0, 16, (unsigned char *)plainText_0, plain0_len, (unsigned char *)cipherText_0, &cipher_len_0);
     if(ret != 0)
     {
         printf(" K0 crypt M0 failed .. \n");
         return ;
     }
     
-    ret = sm4_enc((unsigned char *)cryptkey_1, 32, (unsigned char *)plainText_1, (unsigned int)strlen(plainText_1), (unsigned char *)cipherText_1,(unsigned int *)&cipher_len_1);
+    ret = sm4_enc((unsigned char *)cryptkey_1, 16, (unsigned char *)plainText_1, (unsigned int)plain1_len, (unsigned char *)cipherText_1,(unsigned int *)&cipher_len_1);
     if(ret != 0)
     {
         printf("k1 crypt M1 failed ..\n");
@@ -516,17 +548,17 @@ void test_one_of_two_oblivious_transfer()
         return ;
     }
     
-    print_hex((uint8_t *)"cryptkey_c is ", cryptkey_c, 32);
+    print_hex((uint8_t *)"cryptkey_c is ", cryptkey_c, 16);
 
     //7、
     
     if(randombit == 0)
     {
-        ret = sm4_dec(cryptkey_c, 32, cipherText_0, cipher_len_0, decryptText, &decryptlen);
+        ret = sm4_dec(cryptkey_c, 16, cipherText_0, cipher_len_0, decryptText, &decryptlen);
     }
     else
     {
-        ret = sm4_dec(cryptkey_c, 32, cipherText_1, cipher_len_1, decryptText, &decryptlen);
+        ret = sm4_dec(cryptkey_c, 16, cipherText_1, cipher_len_1, decryptText, &decryptlen);
     }
     
     
@@ -536,8 +568,96 @@ void test_one_of_two_oblivious_transfer()
         return ;
     }
     
-    printf(" B gen message is %s for random = %d \n", decryptText, randombit);
+    memcpy(receivePlain, decryptText, decryptlen);
     
+    
+    //printf(" B gen message is %s for random = %d \n", decryptText, randombit);
+    
+}
+
+void test_private_equality_test()
+{
+    // two party  alice has secret: Sec_a   Bob has secret: Sec_b
+    // using 1-out-of-2-OT  check they have  same seccret
+    // accroding to the following protocol
+    char alice_secret = 0x58;
+    char bob_secret = 0x58;
+    
+    unsigned char alice_bit[8] = {0};
+    unsigned char bob_bit[8] = {0};
+    
+    unsigned char bit01_str[8][2][32] = {{0}};
+    unsigned char alice_str[8][32] = {{0}};
+    unsigned char bob_str[8][32] = {{0}};
+    
+    unsigned int i = 0;
+    
+    // 1、convert Sec_a and Sec_b  to binary like  00101101 and  01011100 ( bit i from 1 to 8 )
+    
+    for(i = 0; i < sizeof(char)*8; i++)
+    {
+        alice_bit[i] = (alice_secret>>i)&0x01;
+        bob_bit[i] = (bob_secret>>i)&0x01;
+    }
+    
+    
+    //2、for every bit i Bob choose random k-bit string {0 <=> i_string_0}, {1 <== >i_string_1}，
+    for(i = 0; i < sizeof(bob_bit); i++)
+    {
+        gen_randomBytes(bit01_str[i][0],16);
+        print_hex((uint8_t *)"bit0_str is ", bit01_str[i][0], 32);
+        gen_randomBytes(bit01_str[i][1], 16);
+        print_hex((uint8_t *)"bit1_str is", bit01_str[i][1], 32);
+        if(bob_bit[i] == 0)
+        {
+            memcpy(bob_str[i], bit01_str[i][0], 32);
+        }
+        else
+        {
+            memcpy(bob_str[i], bit01_str[i][1], 32);
+        }
+        
+    }
+    
+    //3 for alice perform 1-out-of-2 OT alice get his input k => {0,1} corresp string :r_string_k, and bob know nothing about alice's input
+    //4、alice get his input string for bit i ,such as alice first bit is 1,then she get i_string_1
+    //5、continue step 2 for all alice bits
+    for(i = 0; i < sizeof(alice_bit); i++)
+    {
+        test_one_of_two_oblivious_transfer(bit01_str[i][0], 16, bit01_str[i][1], 16, alice_bit[i], alice_str[i]);
+    }
+    
+    //6、alice for all stri (i from 1 to n)  compute xor for every str generate datastr_A
+    unsigned char alicexor[32] = {0};
+    for(i = 0; i < 32; i++)
+    {
+        alicexor[i] = alice_str[0][i];
+        for(int j = 0; j < 8; j++)
+        {
+            alicexor[i] ^= alice_str[j][i];
+        }
+    }
+    
+    //7、alice send datastr_A to Bob
+    
+    //8、Bob for all bit Sec_b  compute xor for every str then generate datastr_B
+    unsigned char bobxor[32] = {0};
+    for (i = 0; i < 32; i++)
+    {
+        bobxor[i] = bob_str[0][i];
+        for(int j = 0; j < 8; j++)
+            bobxor[i] ^= bob_str[j][i];
+    }
+    
+    //9. Bob compare datastr_B with datastr_A to check Sec_a  Sec_b equality
+    if(memcmp(alicexor, bobxor, 32) == 0)
+    {
+        printf("alice's secret is equal to bob's secret \n");
+    }
+    else
+    {
+        printf("alice's secret is not equal to bob's secret \n");
+    }
     
     
     

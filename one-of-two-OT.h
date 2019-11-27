@@ -9,8 +9,18 @@
 #ifndef one_of_two_OT_h
 #define one_of_two_OT_h
 
-#include <stdio.h>
+#ifdef __cplusplus
+extern "C" {
+#endif
+    #include <stdio.h>
+    
+   //void test_one_of_two_oblivious_transfer(unsigned int choosebit);
+   void test_private_equality_test();
+    
+#ifdef __cplusplus
+}
+#endif
 
-void test_one_of_two_oblivious_transfer();
+
 
 #endif /* one_of_two_OT_h */

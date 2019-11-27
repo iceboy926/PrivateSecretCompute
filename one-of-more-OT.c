@@ -514,6 +514,9 @@ int receiver_derive_key(unsigned char *r_prikey, unsigned int r_prikey_len, unsi
     return 0;
 }
 
+// 1-out-of-n oblivious transform
+// sender:
+// receiver:
 
 void test_one_of_more_oblivious_transfer(unsigned int nPart)
 {

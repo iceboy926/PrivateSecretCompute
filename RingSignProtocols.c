@@ -120,9 +120,10 @@ int ringSignGen(unsigned char *plain, unsigned int plainlen, unsigned int signer
     BIGNUM        *y;
     BN_CTX         *ctx;
     EC_SM2_POINT *Pt,*Pz,*R;
-    BIGNUM        *kt;
+    BIGNUM        *kt,*at;
     BIGNUM        *one;
     unsigned char szpubkey[64] = {0};
+    unsigned char szsign[32] = {0};
     
     N = BN_new();
     x = BN_new();
@@ -138,6 +139,12 @@ int ringSignGen(unsigned char *plain, unsigned int plainlen, unsigned int signer
     {
         return 1;
     }
+    
+    if(signer >= RING_COUNT)
+    {
+        return 1;
+    }
+    
     EC_SM2_GROUP_get_order(group, N);
     
     for(int i = 0; i < RING_COUNT; i++)
@@ -165,10 +172,10 @@ int ringSignGen(unsigned char *plain, unsigned int plainlen, unsigned int signer
     }
     
     //2 signer generate  a random k, compute kG = P  , assume P = si*G + ci*Ai; then c(i+1) = Hash(m||P)
-    kt = stArray[signer];
+    kt = BN_new();
     EC_SM2_POINT_mul(group, Pt, kt, G);
     EC_SM2_POINT_affine2gem(group, Pt, Pz);
-    EC_SM2_POINT_get_point(Pz, x, y, kt);
+    EC_SM2_POINT_get_point(Pz, x, y, one);
     
     BN_lshift(x, x, g_uNumbits);
     BN_add(x, x, y);
@@ -196,6 +203,7 @@ int ringSignGen(unsigned char *plain, unsigned int plainlen, unsigned int signer
         
         memset(szData, 0, sizeof(szData));
         memset(szHash, 0, sizeof(szHash));
+        memset(szpubkey, 0, sizeof(szpubkey));
         
         // pubkey
         BN_bin2bn(allPubkey[i], g_uNumbits/8, x);
@@ -208,25 +216,63 @@ int ringSignGen(unsigned char *plain, unsigned int plainlen, unsigned int signer
         EC_SM2_POINT_mul(group, Pt, ctArray[i],Pt);
         EC_SM2_POINT_add(group, R, Pt, Pz);
         EC_SM2_POINT_affine2gem(group, R, R);
+        EC_SM2_POINT_get_point(R, x, y, one);
+        BN_lshift(x, x, g_uNumbits);
+        BN_add(x, x, y);
+        BN_bn2bin(x, szpubkey);
         
         // ci+1 = Hash(m||R)
-        
-        
+        memcpy(szData, plain, plainlen);
+        memcpy(szData + plainlen, szpubkey, 64);
+        SM3(szData, plainlen+64, szHash);
+        BN_bin2bn(szHash, sizeof(szHash), ctArray[(i+1)%RING_COUNT]);
+    
         i++;
         i = i%RING_COUNT;
         
+        printf(" i = %d signer = %d \n", i, signer);
     }
     
-    
-    
     //4、 according to ci, signer compute si = k - ci*ai
+    at = BN_new();
+    BN_bin2bn(prikey, prikeylen, at);
     
-    
+    BN_mul(at, ctArray[signer], at, ctx);
+    BN_nnmod(at, at, N, ctx);
+    BN_sub(stArray[signer], kt, at);
     
     //5、 perform an signature is {c0, s0, s1,...sn-1}
-    
+    //output sign
+    BN_bn2bin(ctArray[0], szsign);
+    memcpy(sign, szsign, sizeof(szsign));
+    *signlen = 32;
+
+    for(int i = 0; i < RING_COUNT; i++)
+    {
+        memset(szsign, 0, sizeof(szsign));
+        BN_bn2bin(stArray[i], szsign);
+        memcpy(sign+(*signlen), szsign, 32);
+        *signlen += 32;
+        //free resource
+        BN_free(ctArray[i]);
+        BN_free(stArray[i]);
+    }
     
     //free resouce
+    
+    
+    BN_free(N);
+    BN_free(kt);
+    BN_free(x);
+    BN_free(y);
+    BN_free(one);
+    BN_free(at);
+    BN_free(kt);
+    EC_SM2_POINT_free(Pt);
+    EC_SM2_POINT_free(Pz);
+    EC_SM2_POINT_free(R);
+    BN_CTX_free(ctx);
+    free(pTemp);
     
     
     

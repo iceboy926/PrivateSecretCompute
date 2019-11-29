@@ -336,11 +336,17 @@ void test_Ring_Sign()
     ret = ringSignGen(plainText, plainlen, signer, signer_prikey, sizeof(signer_prikey), pubkey, RING_COUNT, signData, &signDatalen);
     if(ret != 0)
     {
-        printf(" ringSignGen failed ...\n");
+        printf(" sign ringsign data failed ...\n");
         return ;
     }
     
+    ret = ringVerifySign(plainText, plainlen, pubkey, RING_COUNT, signData, signDatalen);
+    if(ret != 0)
+    {
+        printf(" verify Ring sign data failed ..\n");
+        return ;
+    }
     
-    
+    printf("ring sign and verify data success \n");
     
 }

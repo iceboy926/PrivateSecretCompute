@@ -284,12 +284,18 @@ int ringVerifySign(unsigned char* plain, unsigned int plainlen, unsigned char *a
 {
     //1、 convert sign to {c0, s0, s1, ..., sn-1}    convert all pubkey to {A0, A1,....,An-2, An-1}
     
-    //2、 according to formual ci = Hash(m||si-1*G + ci-1*Ai-1) compute c1,c2, ...cn-1 then wo get c’0
+    //2、 according to formual ci = Hash(m||si-1*G + ci-1*Ai-1) compute c1,c2, ...cn-1 then wo get c0'
+    // c1 = Hash(m||s0*G + c0*A0)
+    // c2 = Hash(m||s1*G + c1*A1)
+    // .....
+    // .....
+    // c0' = Hash(m||sn-1*G + cn-1*An-1)
+    //
     
-    //3、 compare c‘0 is equal to c0 to complate verify signature
+    //3、 compare c0's is equal to c0 to complate verify signature
+    // check c0' c0
     
     return 0;
-    
 }
 
 

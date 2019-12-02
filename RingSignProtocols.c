@@ -22,6 +22,7 @@
 #include "jvcrypto.h"
 
 #define RING_COUNT  10
+#define TEST
 
 int ringGenkeyPair(unsigned char *prikey, unsigned int *prikeylen, unsigned char *pubkey, unsigned int *pubkeylen)
 {
@@ -109,7 +110,7 @@ generate_d:
     return 0;
 }
 
-int ringSignGen(unsigned char *plain, unsigned int plainlen, unsigned int signer, unsigned char *prikey, unsigned int prikeylen, unsigned char allPubkey[][64], unsigned int pubkey_count, unsigned char *sign, unsigned int *signlen)
+int ringSignGen(unsigned char *plain, unsigned int plainlen, unsigned int signer, unsigned char *prikey, unsigned int prikeylen, unsigned char (*allPubkey)[64], unsigned int pubkey_count, unsigned char *sign, unsigned int *signlen)
 {
     //1、signer generate  n-1 random,  s0, s1, s2, ...si-1, si+1, ...sn-1  basepoint G  , si is been computed  in step 4
     unsigned char *pTemp = NULL;
@@ -124,6 +125,7 @@ int ringSignGen(unsigned char *plain, unsigned int plainlen, unsigned int signer
     BIGNUM        *one;
     unsigned char szpubkey[64] = {0};
     unsigned char szsign[32] = {0};
+    unsigned char szprint[128] = {0};
     
     N = BN_new();
     x = BN_new();
@@ -152,30 +154,44 @@ int ringSignGen(unsigned char *plain, unsigned int plainlen, unsigned int signer
         stArray[i] = BN_new();
         ctArray[i] = BN_new();
         
-        if(i == signer)
-            continue ;
-        
     generate_d:
         
+        memset(pTemp, 0, 256);
         if(rng(g_uNumbits, pTemp))
         {
             //PRINT_ERROR("rng return error\n");
             return 1;
         }
-        BN_bin2bn(pTemp, g_uNumbits/8, stArray[i]);
-        BN_nnmod(stArray[i], stArray[i], N, ctx);
-        
-        if( BN_is_zero(stArray[i]) )
+        if(i == signer)
         {
-            goto generate_d;
+            kt = BN_new();
+            BN_bin2bn(pTemp, g_uNumbits/8, kt);
+            BN_nnmod(kt, kt, N, ctx);
+            
+            if( BN_is_zero(kt) )
+            {
+                goto generate_d;
+            }
+        }
+        else
+        {
+            BN_bin2bn(pTemp, g_uNumbits/8, stArray[i]);
+            BN_nnmod(stArray[i], stArray[i], N, ctx);
+            
+            if( BN_is_zero(stArray[i]) )
+            {
+                goto generate_d;
+            }
         }
     }
     
     //2 signer generate  a random k, compute kG = P  , assume P = si*G + ci*Ai; then c(i+1) = Hash(m||P)
-    kt = BN_new();
+    
+    int i = (signer+1)%RING_COUNT;
+    
     EC_SM2_POINT_mul(group, Pt, kt, G);
-    EC_SM2_POINT_affine2gem(group, Pt, Pz);
-    EC_SM2_POINT_get_point(Pz, x, y, one);
+    EC_SM2_POINT_affine2gem(group, Pt, Pt);
+    EC_SM2_POINT_get_point(Pt, x, y, one);
     
     BN_lshift(x, x, g_uNumbits);
     BN_add(x, x, y);
@@ -183,22 +199,19 @@ int ringSignGen(unsigned char *plain, unsigned int plainlen, unsigned int signer
     
     unsigned char szData[1024] = {0};
     unsigned char szHash[32] = {0};
-    unsigned int hashlen = 0;
     memcpy(szData, plain, plainlen);
-    hashlen = plainlen;
     memcpy(szData+plainlen, szpubkey, 64);
-    hashlen += plainlen;
-    SM3(szData, hashlen, szHash);
+    SM3(szData, plainlen + 64, szHash);
     
-    BN_bin2bn(szHash, sizeof(szHash), ctArray[(signer+1)%RING_COUNT]);
+    BN_bin2bn(szHash, sizeof(szHash), ctArray[i]);
+    sprintf(szprint, "c%d is ",i);
+    print_hex(szprint, szHash, sizeof(szHash));
     
     
     //3、according to formual c(i) = Hash(m|| (si-1*G + ci-1*Ai-1)) i = {0,1,2, ..n-1}     c0 = Hash(m||(sn-1*G + cn-1*An-1))  m is plaintext
     // as we know: ci+1 = Hash(m|| (si*G + ci*Ai)) = Hash(m|| P); then continue calculate  {ci+1,ci+2, .., cn-1,c0, c1, c2,...ci}
     // then perform an Ring-Sign
-    
-    int i = signer+1;
-    
+
     while (i != signer) {
         
         memset(szData, 0, sizeof(szData));
@@ -206,8 +219,8 @@ int ringSignGen(unsigned char *plain, unsigned int plainlen, unsigned int signer
         memset(szpubkey, 0, sizeof(szpubkey));
         
         // pubkey
-        BN_bin2bn(allPubkey[i], g_uNumbits/8, x);
-        BN_bin2bn(allPubkey[i]+32, g_uNumbits/8, y);
+        BN_bin2bn(*(allPubkey+i), g_uNumbits/8, x);
+        BN_bin2bn(*(allPubkey+i)+32, g_uNumbits/8, y);
         BN_hex2bn(&one, "1");
         EC_SM2_POINT_set_point(Pt, x, y, one);
         
@@ -230,7 +243,9 @@ int ringSignGen(unsigned char *plain, unsigned int plainlen, unsigned int signer
         i++;
         i = i%RING_COUNT;
         
-        printf(" i = %d signer = %d \n", i, signer);
+        printf("i = %d signer = %d \n", i, signer);
+        sprintf(szprint, "c%d is ", i);
+        print_hex((uint8_t *)szprint, szHash, 32);
     }
     
     //4、 according to ci, signer compute si = k - ci*ai
@@ -240,6 +255,8 @@ int ringSignGen(unsigned char *plain, unsigned int plainlen, unsigned int signer
     BN_mul(at, ctArray[signer], at, ctx);
     BN_nnmod(at, at, N, ctx);
     BN_sub(stArray[signer], kt, at);
+    BN_nnmod(stArray[signer], stArray[signer], N, ctx);
+    
     
     //5、 perform an signature is {c0, s0, s1,...sn-1}
     //output sign
@@ -247,7 +264,7 @@ int ringSignGen(unsigned char *plain, unsigned int plainlen, unsigned int signer
     memcpy(sign, szsign, sizeof(szsign));
     *signlen = 32;
 
-    for(int i = 0; i < RING_COUNT; i++)
+    for(i = 0; i < RING_COUNT; i++)
     {
         memset(szsign, 0, sizeof(szsign));
         BN_bn2bin(stArray[i], szsign);
@@ -267,7 +284,6 @@ int ringSignGen(unsigned char *plain, unsigned int plainlen, unsigned int signer
     BN_free(y);
     BN_free(one);
     BN_free(at);
-    BN_free(kt);
     EC_SM2_POINT_free(Pt);
     EC_SM2_POINT_free(Pz);
     EC_SM2_POINT_free(R);
@@ -280,9 +296,49 @@ int ringSignGen(unsigned char *plain, unsigned int plainlen, unsigned int signer
     
 }
 
-int ringVerifySign(unsigned char* plain, unsigned int plainlen, unsigned char *allPubkey[][64], unsigned int pubkey_count, unsigned char *sign, unsigned int signlen)
+int ringVerifySign(unsigned char* plain, unsigned int plainlen, unsigned char (*allPubkey)[64], unsigned int pubkey_count, unsigned char *sign, unsigned int signlen)
 {
+    
+    if(sign == NULL || plain == NULL)
+    {
+        return 0;
+    }
+    
+    BIGNUM *c,*temp;
+    BIGNUM *si;
+    BIGNUM        *N;
+    BIGNUM        *x;
+    BIGNUM        *y;
+    BIGNUM        *one;
+    BN_CTX         *ctx;
+    EC_SM2_POINT *Pt,*Pz,*R;
+    EC_SM2_POINT *Pi;
+    int i = 0;
+    unsigned char szpubkey[64] = {0};
+    unsigned char szData[1024] = {0};
+    unsigned char szHash[32] = {0};
+    unsigned char szprint[128] = {0};
+    
+    N = BN_new();
+    x = BN_new();
+    y = BN_new();
+    c = BN_new();
+    temp = BN_new();
+    si = BN_new();
+    ctx= BN_CTX_new();
+    Pt = EC_SM2_POINT_new();
+    Pz = EC_SM2_POINT_new();
+    R = EC_SM2_POINT_new();
+    Pi = EC_SM2_POINT_new();
+    one = BN_new();
+    
+    
     //1、 convert sign to {c0, s0, s1, ..., sn-1}    convert all pubkey to {A0, A1,....,An-2, An-1}
+    
+    EC_SM2_GROUP_get_order(group, N);
+    
+    BN_bin2bn(sign, 32, c);
+    BN_bin2bn(sign, 32, temp);
     
     //2、 according to formual ci = Hash(m||si-1*G + ci-1*Ai-1) compute c1,c2, ...cn-1 then wo get c0'
     // c1 = Hash(m||s0*G + c0*A0)
@@ -291,11 +347,75 @@ int ringVerifySign(unsigned char* plain, unsigned int plainlen, unsigned char *a
     // .....
     // c0' = Hash(m||sn-1*G + cn-1*An-1)
     //
+    while (i < RING_COUNT) {
+        BN_bin2bn(sign+(i+1)*32, 32, si);
+        
+        BN_bin2bn(*(allPubkey+i), g_uNumbits/8, x);
+        BN_bin2bn(*(allPubkey+i)+32, g_uNumbits/8, y);
+        BN_hex2bn(&one, "1");
+        EC_SM2_POINT_set_point(Pi, x, y, one);
+        
+        //ci = Hash(m||si-1*G + ci-1*Ai-1)
+        EC_SM2_POINT_mul(group, Pz, si, G);
+        EC_SM2_POINT_mul(group, Pt, temp, Pi);
+        EC_SM2_POINT_add(group, R, Pz, Pt);
+        
+        EC_SM2_POINT_affine2gem(group, R, R);
+        EC_SM2_POINT_get_point(R, x, y, one);
+        
+        BN_lshift(x, x, g_uNumbits);
+        BN_add(x, x, y);
+        BN_bn2bin(x, szpubkey);
+
+        memcpy(szData,plain, plainlen);
+        memcpy(szData+plainlen, szpubkey, 64);
+        
+        SM3(szData, plainlen+64, szHash);
+        
+        sprintf(szprint, "c%d is ", (i+1)%RING_COUNT);
+        print_hex(szprint, szHash, 32);
+        //
+        BN_bin2bn(szHash, 32, temp);
+        
+        i++;
+    }
     
     //3、 compare c0's is equal to c0 to complate verify signature
     // check c0' c0
     
-    return 0;
+    if(BN_cmp(temp, c) == 0)
+    {
+        printf("c0 == c0',verify success \n");
+        
+        BN_free(N);
+        BN_free(c);
+        BN_free(x);
+        BN_free(y);
+        BN_free(one);
+        BN_free(si);
+        EC_SM2_POINT_free(Pt);
+        EC_SM2_POINT_free(Pz);
+        EC_SM2_POINT_free(R);
+        EC_SM2_POINT_free(Pi);
+        BN_CTX_free(ctx);
+        return 0;
+    }
+    else
+    {
+        printf("c0 != c0', verify failed ..\n");
+        BN_free(N);
+        BN_free(c);
+        BN_free(x);
+        BN_free(y);
+        BN_free(one);
+        BN_free(si);
+        EC_SM2_POINT_free(Pt);
+        EC_SM2_POINT_free(Pz);
+        EC_SM2_POINT_free(R);
+        EC_SM2_POINT_free(Pi);
+        BN_CTX_free(ctx);
+        return 1;
+    }
 }
 
 
@@ -313,9 +433,12 @@ void test_Ring_Sign()
     unsigned int prikeylen = 32;
     unsigned int pubkeylen = 64;
     
-    unsigned char signData[(RING_COUNT+1)*64] = {0};
+    unsigned char signData[(RING_COUNT+1)*32] = {0};
     unsigned int signDatalen = sizeof(signData);
     int ret = 0;
+    
+    
+    sm2_init();
     
     for(int i = 0; i < RING_COUNT; i++)
     {
@@ -328,23 +451,25 @@ void test_Ring_Sign()
     }
     
     //the one signer choose own's privatekey public key
-    int signer = 4;
+    int signer = 1;
     
     unsigned char signer_prikey[32] = {0};
-    unsigned char signer_pubkey[64] = {0};
     
     //the signer get other pubkeey
     memcpy(signer_prikey, prikey[signer], prikeylen);
-    memcpy(signer_pubkey, pubkey[signer], pubkeylen);
 
     plainlen = strlen(plainText);
     
-    ret = ringSignGen(plainText, plainlen, signer, signer_prikey, sizeof(signer_prikey), pubkey, RING_COUNT, signData, &signDatalen);
+    ret = ringSignGen(plainText, plainlen, signer, signer_prikey, prikeylen, pubkey, RING_COUNT, signData, &signDatalen);
     if(ret != 0)
     {
         printf(" sign ringsign data failed ...\n");
         return ;
     }
+    
+    //print_hex("sign is ", signData, signDatalen);
+    
+    printf("ringSign success ..\n");
     
     ret = ringVerifySign(plainText, plainlen, pubkey, RING_COUNT, signData, signDatalen);
     if(ret != 0)

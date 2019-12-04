@@ -8,13 +8,13 @@
 
 
 /// protocol for proving that Pedersen commitment c was constructed correctly which is the same as
-/// proof of knowledge of (k) such that C = mG b+ kH.
+/// proof of knowledge of (k) such that C = mG + kH.
 // G is basepoint  H is randomPoint: H = hashtoPoint(G)
-/// witness: (k), statement: (C,m), The Relation R outputs 1 if c = mG + rH. The protocol:
+/// witness: (k), statement: (C,m), The Relation R outputs 1 if c = mG + kH. The protocol:
 /// 1: Prover chooses random r compute R = rG
-/// prover calculates challenge e = Hash(G,H,c,R,m)
+/// prover calculates challenge e = Hash(G,H,C,R,m)
 /// prover calculates z  = r + ek,
-/// prover sends pi = {e,m,R,C,z}
+/// prover sends pi = {e,m,G,z,H,R,C}
 
 /// verifier checks that emG + zH  ===  R + eC
 
@@ -22,7 +22,7 @@
 #include "sigmaProtocol.h"
 
 
-void sigma_genProof(unsigned char *witness, unsigned int witlen, unsigned char *blind, unsigned int blindlen)
+void sigma_genProof(unsigned char *witness, unsigned int witlen, unsigned char *)
 {
     
 }

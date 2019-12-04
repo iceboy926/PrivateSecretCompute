@@ -51,6 +51,8 @@ key = Hash(r*Pv) + st   keyImage = st*Hash(key*G)
 
 details infomation follow the weixin blog “Cryptocurrency”  https://mp.weixin.qq.com/s/iF5_sC5bZen2dfVbCpv4HA
 
+reference list : https://bc123.io/monero/
+
 (7)、
 blind Sign is becoming ...
 

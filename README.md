@@ -25,8 +25,13 @@ commitments include Hash commitment && pedersen commitment
 
 which is using to hide the real transcation-count on the blockchain， achieved the privacy transaction
 
-
 (6)
+sigma-protocol using to simple knowledge proof, prover show proof to verifier that she has a secret and without 
+diplay any information about the secret , verifier verified the proof's validity to check prover has a secret
+about details you can visit the wiki addr => https://en.wikipedia.org/wiki/Sigma_Protocol 
+
+
+(7)、
 Ring Sign is based on Monero protocol ,which is based on CryptoNote
 
 using ring signatures to hide the sender address  //
@@ -44,7 +49,7 @@ how the receiver check the one-time pubkeys is his real address?
 
 key = Hash(r*Pv) + st   keyImage = st*Hash(key*G)
 
-details infomation follow the weixin blog “Cryptocurrency”
+details infomation follow the weixin blog “Cryptocurrency”  https://mp.weixin.qq.com/s/iF5_sC5bZen2dfVbCpv4HA
 
 (7)、
 blind Sign is becoming ...

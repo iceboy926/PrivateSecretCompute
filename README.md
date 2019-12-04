@@ -17,8 +17,8 @@ verify sign using stand gm verify signature
 
 (4)、
 schnorr sign include single schnoor sign and multi-schnorr sign
-
 which is using to compose all signs to one sign in one block, reduced the computation of chain
+detail information refer to http://www.manxinet.com/newest/infotechnology/13457.html
 
 (5)、
 commitments include Hash commitment && pedersen commitment

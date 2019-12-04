@@ -11,4 +11,6 @@
 
 #include <stdio.h>
 
+void test_sigma_proof_verify();
+
 #endif /* sigmaProtocol_h */

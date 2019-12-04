@@ -9,6 +9,9 @@
 #ifndef pedersenCommitments_h
 #define pedersenCommitments_h
 
+#ifdef __cplusplus
+extern "C" {
+#endif
 #include <stdio.h>
 
 
@@ -16,5 +19,11 @@
 /// where m is the commited value, G is the group generator,
 /// H is a random point and r is a blinding value.
 ///
+
+void test_pedersenCommit();
+    
+#ifdef __cplusplus
+}
+#endif
 
 #endif /* pedersenCommitments_h */

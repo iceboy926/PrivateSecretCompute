@@ -9,8 +9,17 @@
 #ifndef sigmaProtocol_h
 #define sigmaProtocol_h
 
+#ifdef __cplusplus
+extern "C" {
+#endif
+
 #include <stdio.h>
 
 void test_sigma_proof_verify();
+    
+    
+#ifdef __cplusplus
+}
+#endif
 
 #endif /* sigmaProtocol_h */

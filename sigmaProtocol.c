@@ -22,14 +22,25 @@
 #include "sigmaProtocol.h"
 
 
-void sigma_genProof(unsigned char *witness, unsigned int witlen, unsigned char *)
+typedef struct SigmaProofSt
 {
-    
+    unsigned char mData[32];
+    unsigned char zData[32];
+    unsigned char RData[64];
+    unsigned char CommitData[64];
+}SigmaProof;
+
+
+int sigma_genProof(unsigned char *plaintext, unsigned int plainlen, unsigned char *witness, unsigned int witlen, SigmaProof *proof)
+{
+ 
+    return 0;
 }
 
-void sigma_verify(unsigned char *proof, unsigned int prooflen)
+int sigma_verify(unsigned char *proof, unsigned int prooflen)
 {
     
+    return 0;
 }
 
 void test_sigma_proof_verify()

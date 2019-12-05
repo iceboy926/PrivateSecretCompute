@@ -30,6 +30,16 @@ sigma-protocol using to simple knowledge proof, prover show proof to verifier th
 diplay any information about the secret , verifier verified the proof's validity to check prover has a secret
 about details you can visit the wiki addr => https://en.wikipedia.org/wiki/Sigma_Protocol 
 
+sigma protocol  prover generate proof data using pedersen commitment 
+protocol for proving that Pedersen commitment C was constructed correctly which is the same as
+proof of knowledge of (m,r) such that C = mG + rH. 
+witness: (r), statement: (C,m), The Relation R outputs 1 if c = mG + rH. The protocol:
+Prover chooses A = s*H for random s
+prover calculates challenge e = H(G,H,c,A,m)
+prover calculates z  = s + er,
+prover sends pi = {e,m,A,C, z}
+verifier checks that emG + zH  = emG + (s+er)H = emG + sH + erH =e(mG + rH) + sH = eC + A == A + eC
+
 
 (7)、
 Ring Sign is based on Monero protocol ,which is based on CryptoNote
@@ -53,7 +63,8 @@ details infomation follow the weixin blog “Cryptocurrency”  https://mp.weixi
 
 reference list : https://bc123.io/monero/
 
-(7)、
+
+(8)、
 blind Sign is becoming ...
 
 

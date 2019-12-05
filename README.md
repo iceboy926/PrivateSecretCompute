@@ -42,7 +42,7 @@ Pt: the receiver spent pubkey
 r: the sender choose random byte
 R: the sender randon pubkey = rG
 Hash: trapdoor function
-==> confuse address P = Hash(r*Pv)*G + Pt
+==> stealth address P = Hash(r*Pv)*G + Pt
 
 how the receiver check the one-time pubkeys is his real address?
 ==> according to ecdh protocol, receiver compute (Hash(sv*R) + st)*G == P for being sv*R = sv*rG = r*sv*G = r*Pv

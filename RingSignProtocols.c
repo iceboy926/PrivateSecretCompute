@@ -186,6 +186,8 @@ int ringSignGen(unsigned char *plain, unsigned int plainlen, unsigned int signer
     }
     
     //2 signer generate  a random k, compute kG = P  , assume P = si*G + ci*Ai; then c(i+1) = Hash(m||P)
+    // I = k*H(P) => H(Ai) = toHashPoint(Ai)*G => R = si*H(Ai) + ci*I
+    //
     
     int i = (signer+1)%RING_COUNT;
     

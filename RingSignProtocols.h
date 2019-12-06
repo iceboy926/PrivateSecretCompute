@@ -13,9 +13,9 @@
 extern "C" {
 #endif
 
-     #include <stdio.h>
+ #include <stdio.h>
     
-    void test_Ring_Sign(void);
+void test_Ring_Sign(void);
     
     
 #ifdef __cplusplus

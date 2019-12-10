@@ -31,9 +31,14 @@ typedef struct PedersenCommSt
 
 
 /// compute c = mG + rH
-/// where m is the to be commited value, G is the group generator,
-/// H is a random point and r is a blinding value.
+/// where m is the to be blind factor , r is amount value ,G is the group generator,
+/// H is a random point
 ///
+
+//With this tool in hand we can go and replace the normal 8-byte integer
+//amounts in Bitcoin transactions with 33-byte Pedersen commitments.
+
+// CT reference address is https://people.xiph.org/~greg/confidential_values.txt
 
 void genPedersenCommit(unsigned char *message, unsigned int messagelen, pedersenComm *commit)
 {

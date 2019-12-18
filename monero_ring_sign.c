@@ -141,14 +141,18 @@ unsigned int monero_ring_sign(PLAIN plain, unsigned int signer, PRIKEY prikey, P
     BIGNUM        *ctArray[MAX_RING_COUNT];
     BIGNUM        *x;
     BIGNUM        *y;
+    BIGNUM        *h;
+    BIGNUM        *R;
     BN_CTX        *ctx;
-    EC_SM2_POINT   *Pt[MAX_RING_COUNT],*Pz,*L,*R;
+    EC_SM2_POINT   *Pt[MAX_RING_COUNT],*Pz,*L;
     BIGNUM        *kt,*at;
     BIGNUM        *one;
     
     N = BN_new();
     x = BN_new();
     y = BN_new();
+    h = BN_new();
+    R = BN_new();
     ctx= BN_CTX_new();
     Pz = EC_SM2_POINT_new();
     L = EC_SM2_POINT_new();
@@ -216,6 +220,20 @@ unsigned int monero_ring_sign(PLAIN plain, unsigned int signer, PRIKEY prikey, P
     // 2、let Lj = aG Rj = a*Hash(Pj)  c(j+1) = Hash(Lj||m||Rj)
     int j = signer;
     EC_SM2_POINT_mul(group, L, at, G);
+    EC_SM2_POINT_affine2gem(group, L, L);
+    
+    //compute Rj
+    unsigned char szData[128] = {0};
+    unsigned char hash[32] = {0};
+    memcpy(szData, *(pubkeylist + signer), 32);
+    memcpy(szData + 32,*(pubkeylist + signer) + 32, 32);
+    SM3(szData, 64, hash);
+    BN_bin2bn(hash, sizeof(hash), h);
+    BN_mul(R, at, h, ctx);
+    BN_nnmod(R, R, N, ctx);
+    
+    //compute cj+1
+    
     
     /* 3、define L(j+1) = s(j+1)*G + c(j+1)*P(j+1)   R(j+1) = s(j+1)*Hash(pj+1) + c(j+1)*I
                   c(j+2) = Hash(Lj+1||m||Rj+1)

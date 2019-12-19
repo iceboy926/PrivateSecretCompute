@@ -9,6 +9,16 @@
 #ifndef monero_ring_sign_h
 #define monero_ring_sign_h
 
+#ifdef __cplusplus
+extern "C" {
+#endif
+    
 #include <stdio.h>
+
+void test_monero_ring_signature();
+    
+#ifdef __cplusplus
+}
+#endif
 
 #endif /* monero_ring_sign_h */

@@ -29,6 +29,28 @@ typedef BYTE  PLAIN[32];    // 32byte plain
 
 extern void print_hex(uint8_t *label, uint8_t *data, uint16_t data_len);
 
+void printECPoint(EC_SM2_POINT *point)
+{
+    BIGNUM *kt = BN_new();
+    BIGNUM *x = BN_new();
+    BIGNUM *y = BN_new();
+    
+    EC_SM2_POINT_get_point(point, x, y, kt);
+    
+    char *str;
+    str = BN_bn2hex(x);
+    printf("x: %s ",str);
+    free(str);
+    
+    str = BN_bn2hex(y);
+    printf("y: %s\n",str);
+    free(str);
+    
+    BN_free(kt);
+    BN_free(x);
+    BN_free(y);
+}
+
 //generate signer keypair (ai, Ai)  user include (0,1,2, ..., n-1)
 // generate other n-1 pubkey A0,A1,A2, ..Ai-1,..Ai+1..,An-1
 
@@ -103,6 +125,7 @@ generate_d:
     if(pubkey != NULL)
     {
         BN_bn2bin(x, pubkey);
+        //print_hex((uint8_t *)"pubkey is ", pubkey, 64);
     }
     
     //compute keyImage I = x*Hash(P)
@@ -114,9 +137,11 @@ generate_d:
     BN_nnmod(x, x, N, ctx);
     
     //ouput keyImage
-    BN_bn2bin(x, prikeyImage);
-    
-    print_hex((uint8_t *)"keyimage is ", prikeyImage, 32);
+    if(prikeyImage != NULL)
+    {
+        BN_bn2bin(x, prikeyImage);
+        //print_hex((uint8_t *)"keyimage is ", prikeyImage, 32);
+    }
     
     //free resource
     BN_free(N);
@@ -128,7 +153,7 @@ generate_d:
     
 }
 
-unsigned int monero_ring_sign(PLAIN plain, unsigned int signer, PRIKEY prikey, PRIKEY prikeyImage, PUBKEYLIST pubkeylist)
+unsigned int monero_ring_sign(PLAIN plain, unsigned int signer, PRIKEY prikey, PRIKEY prikeyImage, PUBKEYLIST pubkeylist, unsigned char *signature, unsigned int *signlen)
 {
     // convert pubkeylist to P0,P1,P2 .., Pj, ...Pn-1 ; plain to m ; prikey to x; prikeyImage to I
     if(plain == NULL || prikey == NULL || prikeyImage == NULL || pubkeylist == NULL)
@@ -143,20 +168,23 @@ unsigned int monero_ring_sign(PLAIN plain, unsigned int signer, PRIKEY prikey, P
     BIGNUM        *y;
     BIGNUM        *h;
     BIGNUM        *R;
+    BIGNUM        *I;
     BN_CTX        *ctx;
     EC_SM2_POINT   *Pt[MAX_RING_COUNT],*Pz,*L;
     BIGNUM        *kt,*at;
     BIGNUM        *one;
+    unsigned  char szpubkey[64] = {0};
     
     N = BN_new();
     x = BN_new();
     y = BN_new();
     h = BN_new();
     R = BN_new();
+    I = BN_new();
+    kt = BN_new();
     ctx= BN_CTX_new();
     Pz = EC_SM2_POINT_new();
     L = EC_SM2_POINT_new();
-    R = EC_SM2_POINT_new();
     one = BN_new();
     pTemp = (unsigned char*)malloc(256);
     
@@ -209,31 +237,37 @@ unsigned int monero_ring_sign(PLAIN plain, unsigned int signer, PRIKEY prikey, P
         }
         
         //convert pubkey to point
-        BN_bin2bn(*(pubkeylist+i), 32, x);
-        BN_bin2bn(*(pubkeylist+i) + 32, 32, y);
-        BN_hex2bn(&one, "01");
-        EC_SM2_POINT_set_point(Pt[i], x, y, one);
         
+        EC_SM2_POINT_bin_to_point(*(pubkeylist + i), 64, Pt[i]);
+        //printECPoint(Pt[i]);
         
     }
     
     // 2、let Lj = aG Rj = a*Hash(Pj)  c(j+1) = Hash(Lj||m||Rj)
-    int j = signer;
+    int j = (signer+1)%MAX_RING_COUNT;
     EC_SM2_POINT_mul(group, L, at, G);
     EC_SM2_POINT_affine2gem(group, L, L);
     
     //compute Rj
-    unsigned char szData[128] = {0};
+    unsigned char szData[512] = {0};
     unsigned char hash[32] = {0};
-    memcpy(szData, *(pubkeylist + signer), 32);
-    memcpy(szData + 32,*(pubkeylist + signer) + 32, 32);
-    SM3(szData, 64, hash);
+    SM3(*(pubkeylist+signer), 64, hash);
     BN_bin2bn(hash, sizeof(hash), h);
     BN_mul(R, at, h, ctx);
     BN_nnmod(R, R, N, ctx);
     
-    //compute cj+1
+    //compute cj+1 = Hash(Lj||m||Rj)
+    memset(szData, 0, sizeof(szData));
+    EC_SM2_POINT_point_to_bin(L, szData);
+    memcpy(szData+64, plain, 64);
+    BN_bn2bin(R, szData+128);
+    memset(hash, 0, sizeof(hash));
+    SM3(szData, 160, hash);
+    BN_bin2bn(hash, sizeof(hash), ctArray[j]);
+    //print_hex((uint8_t *)"ct is ", hash, sizeof(hash));
     
+    //convert keyimage to I
+    BN_bin2bn(prikeyImage, 32, I);
     
     /* 3、define L(j+1) = s(j+1)*G + c(j+1)*P(j+1)   R(j+1) = s(j+1)*Hash(pj+1) + c(j+1)*I
                   c(j+2) = Hash(Lj+1||m||Rj+1)
@@ -245,19 +279,245 @@ unsigned int monero_ring_sign(PLAIN plain, unsigned int signer, PRIKEY prikey, P
         according step 2 then a = sj + cj*x => sj = a - cj*x
     */
     
-    //4、signature is sign {I,c0,s0,s1,...,sn-1}
+    while(j != signer)
+    {
+        memset(szData, 0, sizeof(szData));
+        memset(hash, 0, sizeof(hash));
+        
+        //compute L(j) = s(j)*G + c(j)*P(j)
+        EC_SM2_POINT_mul(group, L, stArray[j], G);
+        EC_SM2_POINT_mul(group, Pz, ctArray[j], Pt[j]);
+        EC_SM2_POINT_add(group, L, L, Pz);
+        EC_SM2_POINT_affine2gem(group, L, L);
+        //printECPoint(L);
+        
+        //compute R(j) = s(j)*Hash(pj) + c(j)*I
+        EC_SM2_POINT_point_to_bin(Pt[j], szpubkey);
+        SM3(szpubkey, 64, hash);
+        BN_bin2bn(hash, 32, h);
+        BN_mul(R, stArray[j], h, ctx);
+        BN_mul(kt, ctArray[j], I, ctx);
+        BN_add(R, R, kt);
+        BN_nnmod(R, R, N, ctx);
+        
+        
+        
+        //compute c(j+1) = Hash(Lj||m||Rj)
+        EC_SM2_POINT_point_to_bin(L, szData);
+        memcpy(szData + 64, plain, 64);
+        BN_bn2bin(R, szData + 128);
+        SM3(szData, 160, hash);
+        BN_bin2bn(hash, sizeof(hash), ctArray[(j+1)%MAX_RING_COUNT]);
+        //print_hex((uint8_t *)"ct is ", hash, sizeof(hash));
+        
+        j++;
+        j = j%MAX_RING_COUNT;
+    }
     
+    // sj =  a - cj*x
+    BN_bin2bn(prikey, 32, x);
+    BN_mul(kt, ctArray[signer], x, ctx);
+    BN_sub(stArray[signer], at, kt);
+    BN_nnmod(stArray[signer], stArray[signer], N, ctx);
+    
+    //4、signature is sign {I,c0,s0,s1,...,sn-1}
+    memcpy(signature, prikeyImage, 32);
+    *signlen = 32;
+    BN_bn2bin(ctArray[0], signature+32);
+    *signlen += 32;
+    
+    for(int i = 0; i < MAX_RING_COUNT; i++)
+    {
+        BN_bn2bin(stArray[i], signature + *signlen);
+        *signlen += 32;
+        EC_SM2_POINT_free(Pt[i]);
+    }
+    
+    //free resource
+    
+    BN_free(N);
+    BN_free(x);
+    BN_free(y);
+    BN_free(h);
+    BN_free(R);
+    BN_free(I);
+    BN_free(one);
+    BN_free(kt);
+    BN_CTX_free(ctx);
+    EC_SM2_POINT_free(Pz);
+    EC_SM2_POINT_free(L);
+    free(pTemp);
+
     
     return 0;
 }
 
-unsigned int monero_ring_verify(PLAIN plain, PUBKEYLIST pubkeylist, unsigned char *signature)
+unsigned int monero_ring_verify(PLAIN plain, PUBKEYLIST pubkeylist, unsigned char *signature, unsigned int signlen)
 {
+    if(plain == NULL || pubkeylist == NULL || signature == NULL)
+    {
+        return 1;
+    }
     // convert pubkeylist to P0,P1,P2 .., Pj, ...Pn-1 ; plain to m ; signature to {I,c0,s0,s1,..,sn-1}
+    BN_CTX        *ctx;
+    BIGNUM        *stArray[MAX_RING_COUNT];
+    BIGNUM        *N;
+    BIGNUM        *x;
+    BIGNUM        *y;
+    BIGNUM        *h;
+    BIGNUM        *R;
+    BIGNUM        *I;
+    BIGNUM        *ct;
+    BIGNUM        *c0;
+    EC_SM2_POINT   *Pt[MAX_RING_COUNT],*Pz,*L;
+    unsigned char szData[512] = {0};
+    unsigned char hash[32] = {0};
+    
+    N = BN_new();
+    x = BN_new();
+    y = BN_new();
+    h = BN_new();
+    R = BN_new();
+    I = BN_new();
+    ct = BN_new();
+    c0 = BN_new();
+    ctx= BN_CTX_new();
+    Pz = EC_SM2_POINT_new();
+    L = EC_SM2_POINT_new();
+    
+    EC_SM2_GROUP_get_order(group, N);
+    
+    BN_bin2bn(signature, 32, I);
+    BN_bin2bn(signature + 32, 32, c0);
+    BN_copy(ct, c0);
+    
+    for(int i = 0; i < MAX_RING_COUNT; i++)
+    {
+        Pt[i] = EC_SM2_POINT_new();
+        EC_SM2_POINT_bin_to_point(*(pubkeylist+i), 64, Pt[i]);
+        //printECPoint(Pt[i]);
+        
+        stArray[i] = BN_new();
+        BN_bin2bn(signature+64+i*32, 32, stArray[i]);
+    }
     
     // according Li = si*G + ci*Pi   Ri = si*Hash(Pi) + ci*I   ci+1 = Hash(Li||m||Ri)
     
-    // compute cn then check cn == c0
+    for(int i = 0; i < MAX_RING_COUNT; i++)
+    {
+        //Li = si*G + ci*Pi
+        EC_SM2_POINT_mul(group, L, stArray[i], G);
+        EC_SM2_POINT_mul(group, Pz, ct, Pt[i]);
+        EC_SM2_POINT_add(group, L, L, Pz);
+        EC_SM2_POINT_affine2gem(group, L, L);
+        
+        //printECPoint(L);
+        
+        //Ri = si*Hash(Pi) + ci*I
+        memset(hash, 0, sizeof(hash));
+        SM3(pubkeylist[i], 64, hash);
+        BN_bin2bn(hash, sizeof(hash), h);
+
+        BN_mul(R, stArray[i], h, ctx);
+        BN_mul(x, ct, I, ctx);
+        BN_add(R, R, x);
+        BN_nnmod(R, R, N, ctx);
+        
+        //ci+1 = Hash(Li||m||Ri)
+        memset(szData, 0, sizeof(szData));
+        EC_SM2_POINT_point_to_bin(L, szData);
+        memcpy(szData + 64, plain, 64);
+        BN_bn2bin(R, szData + 128);
+        memset(hash, 0, sizeof(hash));
+        SM3(szData, 160, hash);
+        
+        //print_hex((uint8_t *)"ct  is ", hash, sizeof(hash));
+        BN_bin2bn(hash, sizeof(hash), ct);
+        BN_nnmod(ct, ct, N, ctx);
+        
+    }
+    
+     // compute cn then check cn == c0
+    if(BN_cmp(ct, c0) == 0)
+    {
+        printf(" ring verify success ...\n");
+    }
+    else
+    {
+        printf(" ring verify failed ...\n");
+    }
+    
+    for(int i = 0; i < MAX_RING_COUNT; i++)
+    {
+        BN_free(stArray[i]);
+        EC_SM2_POINT_free(Pt[i]);
+    }
+    
+    BN_free(N);
+    BN_free(x);
+    BN_free(y);
+    BN_free(h);
+    BN_free(R);
+    BN_free(I);
+    BN_free(c0);
+    BN_free(ct);
+    BN_CTX_free(ctx);
+    EC_SM2_POINT_free(Pz);
+    EC_SM2_POINT_free(L);
+
     
     return 0;
+}
+
+void test_monero_ring_signature()
+{
+    PLAIN plain = "the sample text to be sign";
+    PUBKEYLIST  pubkeylist;
+    PRIKEY  prikey;
+    PRIKEY  prikeyImage;
+    unsigned int ret = 0;
+    unsigned int signer = 3;
+    unsigned char signature[(MAX_RING_COUNT+2)*32] = {0};
+    unsigned int signlen = sizeof(signature);
+    
+    for(int i = 0; i < MAX_RING_COUNT; i++)
+    {
+        if(i == signer)
+        {
+            ret = monero_rign_keygen(prikey, pubkeylist[i], prikeyImage);
+        }
+        else
+        {
+            ret = monero_rign_keygen(NULL, pubkeylist[i], NULL);
+        }
+        if(ret != 0)
+        {
+            printf("monero ring key gen failed ...\n");
+            return ;
+        }
+    }
+    
+    printf("monero ring key gen success .. \n");
+    
+    ret = monero_ring_sign(plain, signer, prikey, prikeyImage, pubkeylist, signature, &signlen);
+    if(ret != 0)
+    {
+        printf("monero ring sign faild .. \n");
+        return ;
+    }
+    
+    printf("monero ring sign success ...\n");
+    
+    ret = monero_ring_verify(plain, pubkeylist, signature, signlen);
+    if(ret != 0)
+    {
+        printf("monero ring verify failed ...\n");
+        return ;
+    }
+    
+    printf("monero ring verify success ... \n");
+    
+
+    return ;
+
 }

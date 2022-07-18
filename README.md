@@ -103,8 +103,9 @@ step 4(Re-encrypt): third-party encrypt using rk
 step 5(Re-create-key): Bob re-create-key and decypt cipherM  
 - d = H3(Xa || pkb|| Xa^skb)  
 - K = H4((E'*V')^d)  
-- plain = Dec(cipherM, K)
+- plain = Dec(cipherM, K)  
 
+then after the PRE , using Alice pubkey encrypted cihpher through third-party Bob can decrypt using her prikey
 
 
 

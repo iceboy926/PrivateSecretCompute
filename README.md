@@ -46,9 +46,9 @@ Ring Sign is based on Monero protocol ,which is based on CryptoNote
 
 using ring signatures to hide the sender address  //
 
-using one-time pubkeys to hide the destination address. 
-Pv: the receiver view pubkey
-Pt: the receiver spent pubkey
+using one-time pubkeys to hide the destination address.  
+Pv: the receiver view pubkey  
+Pt: the receiver spent pubkey  
 r: the sender choose random byte
 R: the sender randon pubkey = rG
 Hash: trapdoor function
@@ -72,23 +72,25 @@ proxy-reencrypt is based on pubkey-cryto and DDH
 
 We assume that there are two user: Alice && bob, Alice want to share some secure info with bob through third-party(maybe server), however Alice don't want third-party to see her plainText ,so one-of method now is Proxy-Re-Encryption(PRE)
 
-step 1(Keypair Init): Alice && Bob gen-keypair
-               pk = g^sk
-              Alice: (ska, pka)  
-              Bob: (skb, pkb)
-step 2(Encrypt and Capsule): Alice ecrypt plainText with pka
-              e,u ->Zp  r is random
-              E = g^e , V = g^u
-              s = u+r*H2(E||V)
-              K = H4(pka^(e+u))
-              cipherM = Enc(plainText, k)
-              capsule = (E, V, s)
-          Alice send capsule && cipherM to third-party
-step 3(ReKeyGen) : Alice generate re-encrypt-key using her prikey
-              xa->Zp , Xa = g^xa
-              d = H3(Xa||pkb || pkb^xa)
-              rk = ska*d^-1;
-          Alice send {rk, Xa} to third-party
+step 1(Keypair Init): Alice && Bob gen-keypair                                                                                               
+- pk = g^sk
+- Alice: (ska, pka)  
+- Bob: (skb, pkb)  
+  
+step 2(Encrypt and Capsule): Alice encrypt plainText with pka and generate capsule
+- e,u ->Zp E = g^e , V = g^u
+- s = u+e*H2(E||V)
+- K = H4(pka^(e+u))
+- cipherM = Enc(plainText, k)
+- capsule = (E, V, s)
+- Alice send capsule && cipherM to third-party  
+
+step 3(ReKeyGen) : Alice generate re-encrypt-key using her prikey  
+- xa->Zp , Xa = g^xa  
+- d = H3(Xa||pkb || pkb^xa)  
+- rk = ska*d^-1;  
+- Alice send {rk, Xa} to third-party  
+  
 step 4(Re-encrypt): third-party encrypt using rk
               capsule = (E, V, s)
               if g^s = V*E^(H2(E||V)) then

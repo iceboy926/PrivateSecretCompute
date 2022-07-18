@@ -71,11 +71,12 @@ blind Sign is becoming ...
 proxy-reencrypt is based on pubkey-cryto and DDH
 
 We assume that there are two user: Alice && bob, Alice want to share some secure info with bob through third-party(maybe server), however Alice don't want third-party to see her plainText ,so one-of method now is Proxy-Re-Encryption(PRE)
- step 1(Keypair Init): Alice && Bob gen-keypair
+
+step 1(Keypair Init): Alice && Bob gen-keypair
                pk = g^sk
               Alice: (ska, pka)  
               Bob: (skb, pkb)
- step 2(Encrypt and Capsule): Alice ecrypt plainText with pka
+step 2(Encrypt and Capsule): Alice ecrypt plainText with pka
               e,u ->Zp  r is random
               E = g^e , V = g^u
               s = u+r*H2(E||V)
@@ -88,7 +89,6 @@ step 3(ReKeyGen) : Alice generate re-encrypt-key using her prikey
               d = H3(Xa||pkb || pkb^xa)
               rk = ska*d^-1;
           Alice send {rk, Xa} to third-party
-
 step 4(Re-encrypt): third-party encrypt using rk
               capsule = (E, V, s)
               if g^s = V*E^(H2(E||V)) then

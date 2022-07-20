@@ -69,7 +69,34 @@ reference list : https://bc123.io/monero/
 (8)、
 blind Sign is becoming ...
 
-(9)、Proxy-Re-Encryptoon
+(9)   
+Symmetric Searchable Encryption with keyword Search
+ 
+ Init Data: two sym keys (k1, k2)  n block plainTxt{w1,w2,...,wn}   n random(s1, s2, ...sn)  
+ - Step 1(Data Owner): two PRF (F, f) and Enc plainTxt Sends to Server database   
+ >foreach i in n  
+ >>Xi=E(k1, wi)={Li||Ri}   Ki=f(k2, Li)  Ti={si || F(Ki, si)}  
+ >>>Ci=Xi^Ti  
+ - Step 2(Data Inqurier): made trapdoor using sym keys(k1, k2) and keyword w (to be finded key)  
+ >X = E(k1, w)={L || R}  K=f(k2,L)  
+ >>send (X, K) to Server db  
+ - Step 3(Server DB): n block cipher {C1,C2,...,Cn}   Trapdoor(X, K)  
+ >foreach i in Cn  
+ >>T=Ci^X = {L'i || R'i}   check T is format of {s||F(K, s)}  
+ >>check F(K, L'i) ==? R'i  
+ >>>if (equal)  
+ >>>finded i  
+ >than send (i, Ci) or find flag to Data Inqurier  
+ //follow step has not needed for Data Inqurier, however Data Inquried wanted to know the result of Inquiry  
+ 
+ - Step 4(Data Inqurier): Decrypt Ci  symmkeys (k1, k2)   random si  
+ > let Ci = {Li || Ri}   Xi = Li^si  
+ >> K = f(k2, Xi)   Yi = F(K, si)^Ri  
+ >> {Xi || Yi} = X  
+ > plainTxt = Dec(k1, X)  
+                
+
+(10)、Proxy-Re-Encryptoon
 proxy-reencrypt is based on pubkey-cryto and DDH
 
 We assume that there are two user: Alice && bob, Alice want to share some secure info with bob through third-party(maybe server), however Alice don't want third-party to see her plainText ,so one-of method now is Proxy-Re-Encryption(PRE)

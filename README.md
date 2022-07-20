@@ -87,8 +87,8 @@ Symmetric Searchable Encryption with keyword Search
  >>>if (equal)  
  >>>finded i  
  >than send (i, Ci) or find flag to Data Inqurier  
+  
  //follow step has not needed for Data Inqurier, however Data Inquried wanted to know the result of Inquiry  
- 
  - Step 4(Data Inqurier): Decrypt Ci  symmkeys (k1, k2)   random si  
  > let Ci = {Li || Ri}   Xi = Li^si  
  >> K = f(k2, Xi)   Yi = F(K, si)^Ri  

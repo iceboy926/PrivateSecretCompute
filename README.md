@@ -16,8 +16,8 @@ one-out-of-two party signature using sm2, prikey is seperate into two parts, one
 verify sign using stand gm verify signature  
 - step 1: partA && partB generate own prikey than output Pubkey  
  > partA: ska , Pa = ska^(-1)*G , send Pa to PartB  
- > partB: skb , Pubkey = skb^(-1)*Pa-G = skb^(-1)*ska^(-1)*G-G = (skb^-1*ska^-1 -1)*G = d'*G   
-            d' = (skb^-1*ska^-1 -1)  
+ > partB: skb , Pubkey = skb^(-1)*Pa-G = skb^(-1)*ska^(-1)*G-G = (skb^(-1)*ska^(-1) -1)*G = d'*G   
+            d' = (skb^(-1)*ska^(-1) -1)  
          send this Pubkey to third verifier  
 - step 2: When a message needs to be signed, the two participants use their prikey fragments to generate the signature fragment, and then both parties transmit the signature fragment, and one of them will combine the received data to generate the SM2 signature  
 > partA: e = Hash(Za||M) random k1, Q1 = k1*G   

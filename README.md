@@ -132,8 +132,46 @@ step 5(Re-create-key): Bob re-create-key and decypt cipherM
 - K = H4((E'*V')^d)  
 - plain = Dec(cipherM, K)  
 
-then after the PRE , using Alice pubkey encrypted cihpher through third-party Bob can decrypt using her prikey
+then after the PRE , using Alice pubkey encrypted cihpher through third-party Bob can decrypt using her prikey  
 
+（11）、the Homomorphic-signature  Based on SM2  
+> the orignal SM2 signature is:  
+> signer: keypair (sk, Pk)  plain M    (xA, yA) = Pk  
+- step 1: Za = Hash(ENTLA || DA ||a || b || xG || yG ||xA || yA) e = Hash(Za||M)
+- step 2: generate random: k    kG = (x1, y1)  
+- step 3: r = (e+x1)mod n  
+          if (r==0) or r+k==n goto step2  
+- step 4: s = (1+sk)^-1 * (k-r*sk) mod n  
+          if (s == 0) got step2  
+> the orignal SM2 verifySign is:
+> verifier: pubkey Pk   plain M   signature (r, s)  
+- step 1: Za = Hash(ENTLA || DA ||a || b || xG || yG ||xA || yA) e = Hash(Za||M)  
+- step 2:  t = (r+s)mod n  
+           if(t == 0) failed  
+- step 3: compute Q =(x2, y2) = sG + tPk
+            = (k-r*sk)G/(1+sk) + (r+s)skG  
+            = (k-r*sk)*G/(1+sk) +r*sk*G + (k-r*sk)*sk*G/(1+sk)  
+            = (k-r*sk + r*sk*(1+sk) + (k-r*sk)*sk)*G/(1+sk)  
+            = (k-r*sk +r*sk +r*sk*sk +k*sk -r*sk*sk)*G/(1+sk)  
+            = (k+k*sk)*G/(1+sk)  
+            = k*G ==(x1, y1)  
+- step 4:  compute R = (e+x2) mod n  
+            if(R == r)  
+                verified success  
+            else  
+                failed   
+                
+the Homomorphic-signature on SM2 is encrypted sk using Invertible functions,as following:  
+> sk' = f(u, sk) = (u+sk) mod n  
+> Pk' = uG +skG  
+> u: the confusion number    (May be co-compute by client with server)  
+- from signer step 4, replace sk with sk', we had:  
+> r' = (e'+x1) mod n  
+> s' = (1+sk')^-1*(k-r*sk') mod n  
+- from verifier step 3 replace Pk with Pk', we had:  
+> Q = (x2, y2) = s'G +tPk' = s'G+(r'+s')(uG+sk)G
+            
+ 
 
 
 

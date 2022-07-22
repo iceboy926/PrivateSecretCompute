@@ -122,10 +122,11 @@ https://blog.csdn.net/u013983667/article/details/54582126
 
 - cloud : keyword w, random r, pubkey Pk and g  
         PEKS(Pk, w):  
-        
+       > temp = e(Hash(w), Pk^r)  e is Bilinear map using PBC lib  
+       > Cw = {g^r }
 - client:  prikey sk, to be searched keyword w'  
        Trapdoor(sk, w'):  
-       
+       > 
 - cloud : {td, Cw}  
 
    

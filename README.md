@@ -13,7 +13,7 @@ one-out-of-n party oblivious transform
 (3)、
 one-out-of-two party signature using sm2, prikey is seperate into two parts, one of any pices cann't finished the sign,
 
-verify sign using stand gm verify signature  
+partA and partB using following steps to generate signatures, but verify sign using stand gm verify signature  
 - step 1: partA && partB generate own prikey than output Pubkey  
  > partA: ska , Pa = ska^(-1)*G , send Pa to PartB  
  > partB: skb , Pubkey = skb^(-1)*Pa-G = skb^(-1)*ska^(-1)*G-G = (skb^(-1)*ska^(-1) -1)*G = d'*G   

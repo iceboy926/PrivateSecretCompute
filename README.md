@@ -115,7 +115,16 @@ Symmetric Searchable Encryption with keyword Search
  > plainTxt = Dec(k1, X)  
                 
 
-(10)、Proxy-Re-Encryptoon
+(10)
+Asymmetry Searchable Encryption Based on implementations of pairing-based cryptosystems using the PBC library, as the following:  
+
+
+
+   
+   
+   
+
+(11)、Proxy-Re-Encryptoon
 proxy-reencrypt is based on pubkey-cryto and DDH
 
 We assume that there are two user: Alice && bob, Alice want to share some secure info with bob through third-party(maybe server), however Alice don't want third-party to see her plainText ,so one-of method now is Proxy-Re-Encryption(PRE)

@@ -122,15 +122,17 @@ https://blog.csdn.net/u013983667/article/details/54582126
 
 - cloud : keyword w, random r, pubkey Pk and g  
         PEKS(Pk, w):  
-       > temp = e(Hash(w), Pk^r)  e is Bilinear map using PBC lib  
-       > Cw = {g^r, Hash(temp)} = {A, B}
+        temp = e(Hash(w), Pk^r)  e is Bilinear map using PBC lib  
+        Cw = {g^r, Hash(temp)} = {A, B}
 - client:  prikey sk, to be searched keyword w'  
        Trapdoor(sk, w'):  
-       > td = Hash(w')^sk
+       td = Hash(w')^sk
       
 - cloud : {td, Cw}  
        TestMatched(td, Cw):  
-       > 
+       Cw = {A, B}  compute outd = e(td, A)  
+       check Hash(outd) = Hash(e(td, A)) ==? B  
+       if equal then finded w' in cloud else not finded w' in cloud
 
    
    

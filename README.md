@@ -39,11 +39,10 @@ one-out-of-two party decrypt using sm2,  prikey is seperate into two parts, one 
   
 - step 1: partA use his prikey fragment ska  compute Ta = ska^-1*C1  send Ta to partB  
 - step 2: partB use his prikey fragment skb compute Tb = skb^-1*Ta  send back to partA  
-- 
-- 
- 
-
-  
+- step 3: partA compute (x2, y2) = Tb - C1 compute t = KDF(x1||y1,klen)  than plainM = C2^t  
+      at same time compute u = Hash(x2 || plainM || y2) == ? C3  
+      if(u == C3) output plainM as decrypted plain  else decrypted failed  
+      
   
 (4)、
 schnorr sign include single schnoor sign and multi-schnorr sign

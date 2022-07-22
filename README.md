@@ -17,18 +17,17 @@ verify sign using stand gm verify signature
 - step 1: partA && partB generate own prikey than output Pubkey  
  > partA: ska , Pa = ska^(-1)*G , send Pa to PartB  
  > partB: skb , Pubkey = skb^(-1)*Pa-G = skb^(-1)*ska^(-1)*G-G = (skb^(-1)*ska^(-1) -1)*G = d'*G   
-            d' = (skb^(-1)*ska^(-1) -1)  
+            d' = ((skb)^(-1))*((ska)^(-1))-1)  
          send this Pubkey to third verifier  
 - step 2: When a message needs to be signed, the two participants use their prikey fragments to generate the signature fragment, and then both parties transmit the signature fragment, and one of them will combine the received data to generate the SM2 signature  
-> partA: e = Hash(Za||M) random k1, Q1 = k1*G   
+> partA: e = Hash(Za||M) random k1, Q1 = k1\*G   
            send {e,Q1} to partB  
 > partB: random k2, k3  Q2=k2*G  
-           (x1,y1) = k3*Q1 +Q2  
+           (x1,y1) = k3\*Q1 +Q2  
            r = (e +x1) mod n   
-           s2 = skb*k3, s3 = skb*(r+k2) mod n  
+           s2 = (skb)\*(k3), s3 = skb\*(r+k2) mod n  
            send {r ,s2, s3} to partA  
-> partA: compute s = da*k1*s2 + da*s3 -r  
-           
+> partA: compute s = da\*k1\*s2 + da\*s3 -r  
            if(s != 0) && (s+r != n)  
                 output (r,s) as signature  
            else  

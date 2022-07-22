@@ -34,10 +34,17 @@ partA and partB using following steps to generate signatures, but verify sign us
                 goto partB    
   
 one-out-of-two party decrypt using sm2,  prikey is seperate into two parts, one of any pices cann't finished the decrypt.  
- When the SM2 ciphertext needs to be decrypted, the two participants use their respective private key fragments to calculate and generate the plaintext fragment, and then both parties transmit the plaintext fragment and other auxiliary calculation data, and one of them will combine the received data to calculate and generate the decrypted plaintext.  
+ When the SM2 ciphertext needs to be decrypted, the two participants use their respective private key fragments to calculate and generate the plaintext fragment, and then both parties transmit the plaintext fragment and other auxiliary calculation data, and one of them will combine the received data to calculate and generate the decrypted plaintext:  
+  two parts has the cipherTxt as C1||C2||C3   
+  
+- step 1: partA use his prikey fragment ska  compute Ta = ska^-1*C1  send Ta to partB  
+- step 2: partB use his prikey fragment skb compute Tb = skb^-1*Ta  send back to partA  
+- 
+- 
  
 
-
+  
+  
 (4)、
 schnorr sign include single schnoor sign and multi-schnorr sign
 which is using to compose all signs to one sign in one block, reduced the computation of chain

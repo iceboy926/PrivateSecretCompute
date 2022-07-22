@@ -32,7 +32,8 @@ partA and partB using following steps to generate signatures, but verify sign us
                 output (r,s) as signature  
            else  
                 goto partB    
- one-out-of-two party decrypt using sm2,  prikey is seperate into two parts, one of any pices cann't finished the decrypt.  
+  
+one-out-of-two party decrypt using sm2,  prikey is seperate into two parts, one of any pices cann't finished the decrypt.  
  When the SM2 ciphertext needs to be decrypted, the two participants use their respective private key fragments to calculate and generate the plaintext fragment, and then both parties transmit the plaintext fragment and other auxiliary calculation data, and one of them will combine the received data to calculate and generate the decrypted plaintext.  
  
 

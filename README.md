@@ -118,7 +118,15 @@ Symmetric Searchable Encryption with keyword Search
 (10)
 Asymmetry Searchable Encryption Based on implementations of pairing-based cryptosystems using the PBC library, as the following:  
 
+https://blog.csdn.net/u013983667/article/details/54582126  
 
+- cloud : keyword w, random r, pubkey Pk and g  
+        PEKS(Pk, w):  
+        
+- client:  prikey sk, to be searched keyword w'  
+       Trapdoor(sk, w'):  
+       
+- cloud : {td, Cw}  
 
    
    

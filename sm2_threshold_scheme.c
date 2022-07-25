@@ -1022,6 +1022,27 @@ void sm2_test_threshold_sign()
 
 }
 
+int sm2_threshold_partA_dec(unsigned char *a_prikey, unsigned int a_prikey_len, unsigned char *a_temp_pubkey, unsigned int *a_temp_pubkey_len)
+{
+    BIGNUM         *N;
+    BIGNUM        *da;
+    BN_CTX         *ctx;
+    unsigned char S[128] = {0};
+    
+    if( a_prikey == NULL  || a_temp_pubkey == NULL  || a_temp_pubkey_len == NULL)
+    {
+        return 1;
+    }
+	
+    N = BN_new();
+    ctx= BN_CTX_new();
+    da = BN_new();
+    
+    EC_SM2_GROUP_get_order(group, N);
+	
+    //
+}
+
 void sm2_test_threshold_decrypt()
 {
     unsigned char encryptdata[1024] ={0};
@@ -1062,7 +1083,7 @@ void sm2_test_threshold_decrypt()
 	return ;
     }
 	
-    //output encryptdata
+    //output encryptdata  formate as C1||C2||C3
     
     
     sm2_release();

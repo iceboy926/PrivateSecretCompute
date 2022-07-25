@@ -9,7 +9,6 @@
 #include "sm2.h"
 #include "sm3.h"
 #include "kdf.h"
-#include "jvcrypto.h"
 //#include "crypto.h"
 
 #define TEST
@@ -1006,7 +1005,7 @@ void sm2_test_threshold_sign()
     
     printf(" sign success \n");
     
-    ret = jvc_sm2_verify(plain, 6, sign, 64, ab_pubkey, ab_pubkey_len);
+    ret = sm2_verify(plain, 6, sign, 64, ab_pubkey, ab_pubkey_len);
     if(ret != 0)
     {
         printf("jvc_sm2_verify failed ! \n");
@@ -1022,10 +1021,11 @@ void sm2_test_threshold_sign()
 
 }
 
-int sm2_threshold_partA_dec(unsigned char *a_prikey, unsigned int a_prikey_len, unsigned char *a_temp_pubkey, unsigned int *a_temp_pubkey_len)
+int sm2_threshold_partA_dec(unsigned char *a_prikey, unsigned int a_prikey_len, unsigned char *cipherTxtC1, unsigned int cipherTxtC1Len, unsigned char *a_temp_pubkey, unsigned int *a_temp_pubkey_len)
 {
     BIGNUM         *N;
     BIGNUM        *da;
+    BIGNUM        *_da;
     BN_CTX         *ctx;
     unsigned char S[128] = {0};
     
@@ -1037,10 +1037,18 @@ int sm2_threshold_partA_dec(unsigned char *a_prikey, unsigned int a_prikey_len, 
     N = BN_new();
     ctx= BN_CTX_new();
     da = BN_new();
+    _da = BN_new();
     
     EC_SM2_GROUP_get_order(group, N);
 	
     //
+    BN_bin2bn(a_prikey, a_prikey_len, da);
+	 
+    BN_mod_inverse(_db, db, N, ctx);
+    BN_nnmod(_db,_db,N,ctx);
+    
+    
+    
 }
 
 void sm2_test_threshold_decrypt()

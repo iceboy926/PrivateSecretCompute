@@ -1022,6 +1022,46 @@ void sm2_test_threshold_sign()
 
 }
 
+void sm2_test_threshold_decrypt()
+{
+    unsigned char encryptdata[1024] ={0};
+    unsigned int encryptdatalen = sizeof(encryptdata);
+    unsigned char *plain = "test123ABC";
+	
+	
+    unsigned char a_prikey[32] = {0};
+    unsigned int a_prikey_len = 32;
+    unsigned char ab_pubkey[65] = {0};
+    unsigned int ab_pubkey_len = 65;
+    unsigned char b_prikey[32] = {0};
+    unsigned int b_prikey_len = 32;
+	
+    int ret = 0;
+	
+    sm2_init();
+	
+    ret = sm2_threshold_a_genkey(a_prikey, &a_prikey_len, a_pubkey, &a_pubkey_len);
+    if(ret != 0)
+    {
+        printf(" sm2_threshold_a_genkey failed ! \n");
+        return ;
+    }
+    
+    
+    ret = sm2_threshold_b_genkey(a_pubkey, a_pubkey_len, b_prikey, &b_prikey_len, ab_pubkey, &ab_pubkey_len);
+    if(ret != 0)
+    {
+        printf(" sm2_threshold_b_genkey failed ! \n");
+        return ;
+    }
+    
+    
+    
+    
+    sm2_release();
+   
+}
+
 
 
 

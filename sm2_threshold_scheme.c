@@ -1027,6 +1027,7 @@ int sm2_threshold_partA_dec(unsigned char *a_prikey, unsigned int a_prikey_len, 
     BIGNUM        *da;
     BIGNUM        *_da;
     BIGNUM        *xa, *ya;
+    BIGNUM        *x1, *y1;
     BIGNUM        *one;
     BN_CTX         *ctx;
     EC_SM2_POINT    *Qa;
@@ -1043,6 +1044,8 @@ int sm2_threshold_partA_dec(unsigned char *a_prikey, unsigned int a_prikey_len, 
     da = BN_new();
     _da = BN_new();
     one = BN_new();
+    x1 = BN_new();
+    y1 = BN_new();
     Qa = EC_SM2_POINT_new();
     Q = EC_SM2_POINT_new();
     
@@ -1071,6 +1074,13 @@ int sm2_threshold_partA_dec(unsigned char *a_prikey, unsigned int a_prikey_len, 
     }
     
     EC_SM2_POINT_affine2gem(group, Q, Q);
+	
+    EC_SM2_POINT_get_point(Q, x1, y1, da);
+    
+    BN_lshift(x1,x1,8*g_uNumbits/8);
+    BN_add(x1,x1,y1);
+    
+    
     
     
 }

@@ -1021,12 +1021,17 @@ void sm2_test_threshold_sign()
 
 }
 
-int sm2_threshold_partA_dec(unsigned char *a_prikey, unsigned int a_prikey_len, unsigned char *cipherTxtC1, unsigned int cipherTxtC1Len, unsigned char *a_temp_pubkey, unsigned int *a_temp_pubkey_len)
+int sm2_threshold_partA_dec(unsigned char *a_prikey, unsigned int a_prikey_len, unsigned char *cipherTxtC1, unsigned int cipherTxtC1Len)
 {
     BIGNUM         *N;
     BIGNUM        *da;
     BIGNUM        *_da;
+    BIGNUM        *xa, *ya;
+    BIGNUM        *one;
     BN_CTX         *ctx;
+    EC_SM2_POINT    *Qa;
+    EC_SM2_POINT    *Qb;
+    EC_SM2_POINT    *Q;
     unsigned char S[128] = {0};
     
     if( a_prikey == NULL  || a_temp_pubkey == NULL  || a_temp_pubkey_len == NULL)
@@ -1038,6 +1043,8 @@ int sm2_threshold_partA_dec(unsigned char *a_prikey, unsigned int a_prikey_len, 
     ctx= BN_CTX_new();
     da = BN_new();
     _da = BN_new();
+    one = BN_new();
+    Qa = EC_SM2_POINT_new();
     
     EC_SM2_GROUP_get_order(group, N);
 	
@@ -1047,6 +1054,13 @@ int sm2_threshold_partA_dec(unsigned char *a_prikey, unsigned int a_prikey_len, 
     BN_mod_inverse(_db, db, N, ctx);
     BN_nnmod(_db,_db,N,ctx);
     
+    // compute Ta = da^(-1) * C1
+    BN_bin2bn(cipherTxtC1,g_uNumbits/8,xa);
+    BN_bin2bn(cipherTxtC1+32,g_uNumbits/8,ya);
+    
+    // 
+    BN_hex2bn(&one,"1");
+    EC_SM2_POINT_set_point(Qa,xa,ya,one);
     
     
 }

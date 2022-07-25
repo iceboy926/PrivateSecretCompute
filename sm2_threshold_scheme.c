@@ -1030,7 +1030,6 @@ int sm2_threshold_partA_dec(unsigned char *a_prikey, unsigned int a_prikey_len, 
     BIGNUM        *one;
     BN_CTX         *ctx;
     EC_SM2_POINT    *Qa;
-    EC_SM2_POINT    *Qb;
     EC_SM2_POINT    *Q;
     unsigned char S[128] = {0};
     
@@ -1045,6 +1044,7 @@ int sm2_threshold_partA_dec(unsigned char *a_prikey, unsigned int a_prikey_len, 
     _da = BN_new();
     one = BN_new();
     Qa = EC_SM2_POINT_new();
+    Q = EC_SM2_POINT_new();
     
     EC_SM2_GROUP_get_order(group, N);
 	
@@ -1061,6 +1061,16 @@ int sm2_threshold_partA_dec(unsigned char *a_prikey, unsigned int a_prikey_len, 
     // 
     BN_hex2bn(&one,"1");
     EC_SM2_POINT_set_point(Qa,xa,ya,one);
+	
+    EC_SM2_POINT_mul(group, Q, _da, Qa);
+    
+    if (EC_SM2_POINT_is_at_infinity(group,Q))
+    {
+        printf("EC_SM2_POINT_is_at_infinity error \n");
+        return 1;
+    }
+    
+    EC_SM2_POINT_affine2gem(group, Q, Q);
     
     
 }

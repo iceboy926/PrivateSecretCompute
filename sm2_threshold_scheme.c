@@ -1055,7 +1055,14 @@ void sm2_test_threshold_decrypt()
         return ;
     }
     
-    
+    ret = sm2_encrypt(plain, strlen(plain), ab_pubkey, ab_pubkey_len, encryptdata, &encryptdata);
+    if(ret != 0)
+    {
+	printf("sm2 encrypt using ab co-generate pubkey \n");
+	return ;
+    }
+	
+    //output encryptdata
     
     
     sm2_release();

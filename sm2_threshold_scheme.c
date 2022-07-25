@@ -1021,7 +1021,7 @@ void sm2_test_threshold_sign()
 
 }
 
-int sm2_threshold_partA_dec(unsigned char *a_prikey, unsigned int a_prikey_len, unsigned char *cipherTxtC1, unsigned int cipherTxtC1Len)
+int sm2_threshold_partA_dec(unsigned char *a_prikey, unsigned int a_prikey_len, unsigned char *cipherTxtC1, unsigned int cipherTxtC1Len, unsigned char *txtA, unsigned int *txtAlen)
 {
     BIGNUM         *N;
     BIGNUM        *da;
@@ -1057,13 +1057,13 @@ int sm2_threshold_partA_dec(unsigned char *a_prikey, unsigned int a_prikey_len, 
     BN_mod_inverse(_db, db, N, ctx);
     BN_nnmod(_db,_db,N,ctx);
     
-    // compute Ta = da^(-1) * C1
-    BN_bin2bn(cipherTxtC1,g_uNumbits/8,xa);
-    BN_bin2bn(cipherTxtC1+32,g_uNumbits/8,ya);
+    // C1 convert {x1, y1}
+    BN_bin2bn(cipherTxtC1,g_uNumbits/8,x1);
+    BN_bin2bn(cipherTxtC1+32,g_uNumbits/8,y1);
     
-    // 
+    // compute Ta = da^(-1) * C1
     BN_hex2bn(&one,"1");
-    EC_SM2_POINT_set_point(Qa,xa,ya,one);
+    EC_SM2_POINT_set_point(Qa,x1,y1,one);
 	
     EC_SM2_POINT_mul(group, Q, _da, Qa);
     
@@ -1079,8 +1079,24 @@ int sm2_threshold_partA_dec(unsigned char *a_prikey, unsigned int a_prikey_len, 
     
     BN_lshift(x1,x1,8*g_uNumbits/8);
     BN_add(x1,x1,y1);
+	
+    //ouput Ta
+    BN_bn2bin(x1, S);
     
+    memcpy(txtA, S, 64);
+    *txtAlen = 64;
     
+    BN_free(N);
+    BN_free(da);
+    BN_free(_da);
+    BN_free(x1);
+    BN_free(y1);
+    BN_free(xa);
+    BN_free(ya);
+    BN_free(one);
+    BN_CTX_free(ctx);
+   
+    return 0;
     
     
 }

@@ -1295,6 +1295,12 @@ void sm2_test_threshold_decrypt()
     unsigned char b_prikey[32] = {0};
     unsigned int b_prikey_len = 32;
 	
+    unsigned char txt_a[65] = {0};
+    unsigned char txt_b[65] = {0};
+    unsigned char cipherTxtC1[32] = {0};
+    unsigned char cipherTxtC2[128] = {0};
+    unsigned int  txt_a_len = sizeof(txt_a);
+	
     int ret = 0;
 	
     sm2_init();
@@ -1322,7 +1328,18 @@ void sm2_test_threshold_decrypt()
     }
 	
     //output encryptdata  formate as C1||C2||C3
+    memcpy(cipherTxtC1, encryptdata, 32);
+    memcpy(cipherTxtC2, encryptdata+32, strlen(plain));
     
+    
+    ret = sm2_threshold_partA_dec(a_prikey, a_prikey_len, cipherTxtC1, 32, txt_a, &txt_a_len);
+    if(ret)
+    {
+       printf("sm2 decrypt using a prikey \n");
+       return ;
+    }
+	
+   
     
     sm2_release();
    

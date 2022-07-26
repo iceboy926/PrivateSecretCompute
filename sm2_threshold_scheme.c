@@ -1032,9 +1032,10 @@ int sm2_threshold_partA_dec(unsigned char *a_prikey, unsigned int a_prikey_len, 
     BN_CTX         *ctx;
     EC_SM2_POINT    *Qa;
     EC_SM2_POINT    *Q;
+    int ret = 0;
     unsigned char S[128] = {0};
     
-    if( a_prikey == NULL  || a_temp_pubkey == NULL  || a_temp_pubkey_len == NULL)
+    if( a_prikey == NULL  || cipherTxtC1 == NULL  || txtA == NULL)
     {
         return 1;
     }
@@ -1054,8 +1055,8 @@ int sm2_threshold_partA_dec(unsigned char *a_prikey, unsigned int a_prikey_len, 
     //
     BN_bin2bn(a_prikey, a_prikey_len, da);
 	 
-    BN_mod_inverse(_db, db, N, ctx);
-    BN_nnmod(_db,_db,N,ctx);
+    BN_mod_inverse(_da, da, N, ctx);
+    BN_nnmod(_da,_da,N,ctx);
     
     // C1 convert {x1, y1}
     BN_bin2bn(cipherTxtC1,g_uNumbits/8,x1);
@@ -1070,7 +1071,8 @@ int sm2_threshold_partA_dec(unsigned char *a_prikey, unsigned int a_prikey_len, 
     if (EC_SM2_POINT_is_at_infinity(group,Q))
     {
         printf("EC_SM2_POINT_is_at_infinity error \n");
-        return 1;
+        ret = 1;
+        goto END;
     }
     
     EC_SM2_POINT_affine2gem(group, Q, Q);
@@ -1085,7 +1087,10 @@ int sm2_threshold_partA_dec(unsigned char *a_prikey, unsigned int a_prikey_len, 
     
     memcpy(txtA, S, 64);
     *txtAlen = 64;
+
+    ret = 0;
     
+END:
     BN_free(N);
     BN_free(da);
     BN_free(_da);
@@ -1094,11 +1099,184 @@ int sm2_threshold_partA_dec(unsigned char *a_prikey, unsigned int a_prikey_len, 
     BN_free(xa);
     BN_free(ya);
     BN_free(one);
+    EC_SM2_POINT_free(Qa);
+    EC_SM2_POINT_free(Q);
     BN_CTX_free(ctx);
    
-    return 0;
+    return ret;
+}
+
+int sm2_threshold_partB_dec(unsigned char *b_prikey, unsigned int b_prikey_len, unsigned char *txtA, unsigned int txtAlen, unsigned char *txtB, unsigned int *txtBlen)
+{
+    BIGNUM         *N;
+    BIGNUM        *db, *one, *_db;
+    BIGNUM        *x1, *y1;
+    BN_CTX         *ctx;
+    EC_SM2_POINT    *Qb;
+    EC_SM2_POINT    *Q;
+    int ret = 0;
+    unsigned char S[128] = {0};
     
+    if(b_prikey == NULL || txtA == NULL || txtB == NULL)
+    {
+       return 1;
+    }
     
+    N = BN_new();
+    ctx= BN_CTX_new();
+    db = BN_new();
+    _db = BN_new();
+    x1 = BN_new();
+    y1 = BN_new();
+    one = BN_new();
+    Qb = EC_SM2_POINT_new();
+    Q = EC_SM2_POINT_new();
+    
+    EC_SM2_GROUP_get_order(group, N);
+    
+    BN_bin2bn(b_prikey, b_prikey_len, db);
+
+    BN_mod_inverse(_db, db, N, ctx);
+    BN_nnmod(_db,_db,N,ctx);
+    
+    //Tb = db^(-1)*Ta
+    
+    //convert Ta -> Point(x, y)
+    
+    // Ta convert {x1, y1}
+    BN_bin2bn(txtA,g_uNumbits/8,x1);
+    BN_bin2bn(txtA+32,g_uNumbits/8,y1);
+    
+    BN_hex2bn(&one,"1");
+    EC_SM2_POINT_set_point(Qb,x1,y1,one);
+    
+    EC_SM2_POINT_mul(group, Q, _db, Qb);
+    
+    if (EC_SM2_POINT_is_at_infinity(group,Q))
+    {
+        printf("EC_SM2_POINT_is_at_infinity error \n");
+        ret = 1;
+        goto END;
+    }
+
+    // Convert Tb to {x, y}
+    
+    EC_SM2_POINT_affine2gem(group, Q, Q);
+	
+    EC_SM2_POINT_get_point(Q, x1, y1, db);
+    
+    BN_lshift(x1,x1,8*g_uNumbits/8);
+    BN_add(x1,x1,y1);
+    
+      //ouput Tb
+    BN_bn2bin(x1, S);
+    
+    memcpy(txtB, S, 64);
+    *txtBlen = 64;
+    
+    ret = 0;
+END:  
+    
+    BN_free(N);
+    BN_free(db);
+    BN_free(_db);
+    BN_free(x1);
+    BN_free(y1);
+    BN_free(one);
+    EC_SM2_POINT_free(Qb);
+    EC_SM2_POINT_free(Q);
+    BN_CTX_free(ctx);
+    
+    return ret;
+}
+
+int sm2_threshold_partA_dec2(unsigned char *txtB, unsigned int txtBlen, unsigned char *cipherTxtC1, unsigned int cipherTxtC1len, unsigned char *cipherTxtC2, unsigned int cipherTxtC2len, unsigned char *plain, unsigned int *plainlen)
+{
+    BIGNUM   *N;
+    BIGNUM   *db, *one;
+    BIGNUM   *x1, *y1;
+    BN_CTX         *ctx;
+    EC_SM2_POINT    *Qb;
+    EC_SM2_POINT    *Qc, *P;
+    int ret = 0;
+    unsigned char S[128] = {0};
+    unsigned char kdft[128] = {0};
+
+    if(txtB == NULL || cipherTxtC1 == NULL || cipherTxtC2 == NULL || cipherTxtC2len == 0 || plain == NULL || plainlen == NULL)
+    {
+        return 1;
+    }
+    
+    //Point (x2, y2) = Tb-C1
+    // t = KDF(x2||y2, klen)
+    // plainTxt = C2^t
+    
+    N = BN_new();
+    ctx= BN_CTX_new();
+    db = BN_new();
+    x1 = BN_new();
+    y1 = BN_new();
+    one = BN_new();
+    
+    Qb = EC_SM2_POINT_new();
+    Qc = EC_SM2_POINT_new();
+    P = EC_SM2_POINT_new();
+
+    EC_SM2_GROUP_get_order(group, N);
+    
+    //convert Tb string to Point tb(x,y)
+    BN_bin2bn(txtB,g_uNumbits/8,x1);
+    BN_bin2bn(txtB+32,g_uNumbits/8,y1);
+    
+    BN_hex2bn(&one,"1");
+    EC_SM2_POINT_set_point(Qb,x1,y1,one);
+    
+    //convert C1 string to Point c1(x,y)
+    BN_bin2bn(cipherTxtC1,g_uNumbits/8,x1);
+    BN_bin2bn(cipherTxtC1+32,g_uNumbits/8,y1);
+    
+    EC_SM2_POINT_set_point(Qc,x1,y1,one);
+    
+    //Qb-Qc
+    EC_SM2_POINT_sub(group, P, Qb, Qc);
+    if (EC_SM2_POINT_is_at_infinity(group,P))
+    {    
+        ret = 1;
+        goto END;
+    }
+    
+    //convert P to string (x,y)
+    
+    EC_SM2_POINT_affine2gem(group, P, P);
+    EC_SM2_POINT_get_point(P, x1, y1, db);
+    BN_lshift(x1,x1,8*g_uNumbits/8);
+    BN_add(x1,x1,y1);
+    BN_bn2bin(x1, S);
+    
+    //t = kdf(x||y, klen)
+    kdf(kdft, cipherTxtC2len*8, S, 64);
+    
+    //output plainTxt = C2^t
+    for(int i = 0; i < cipherTxtC2len; i++)
+    {
+        plain[i] = cipherTxtC2[i] ^ kdft[i];
+    }
+    
+    *plainlen = cipherTxtC2len;
+    
+END:
+    BN_free(N);
+    BN_free(db);
+    BN_free(x1);
+    BN_free(y1);
+    BN_free(one);
+    
+    EC_SM2_POINT_free(Qb);
+    EC_SM2_POINT_free(Qc);
+    EC_SM2_POINT_free(P);
+    BN_CTX_free(ctx);
+
+    return ret;
 }
 
 void sm2_test_threshold_decrypt()
@@ -1110,6 +1288,8 @@ void sm2_test_threshold_decrypt()
 	
     unsigned char a_prikey[32] = {0};
     unsigned int a_prikey_len = 32;
+    unsigned char a_pubkey[65] = {0};
+    unsigned int a_pubkey_len = sizeof(a_pubkey);
     unsigned char ab_pubkey[65] = {0};
     unsigned int ab_pubkey_len = 65;
     unsigned char b_prikey[32] = {0};
@@ -1134,7 +1314,7 @@ void sm2_test_threshold_decrypt()
         return ;
     }
     
-    ret = sm2_encrypt(plain, strlen(plain), ab_pubkey, ab_pubkey_len, encryptdata, &encryptdata);
+    ret = sm2_encrypt(plain, strlen(plain), ab_pubkey, ab_pubkey_len, encryptdata, &encryptdatalen);
     if(ret != 0)
     {
 	printf("sm2 encrypt using ab co-generate pubkey \n");
@@ -1147,7 +1327,6 @@ void sm2_test_threshold_decrypt()
     sm2_release();
    
 }
-
 
 
 

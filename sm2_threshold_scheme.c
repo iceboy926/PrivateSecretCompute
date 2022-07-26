@@ -1300,6 +1300,10 @@ void sm2_test_threshold_decrypt()
     unsigned char cipherTxtC1[32] = {0};
     unsigned char cipherTxtC2[128] = {0};
     unsigned int  txt_a_len = sizeof(txt_a);
+    unsigned int  txt_b_len = sizeof(txt_b);
+	
+    unsigned char outplain[128] = {0};
+    unsigned int outplainlen = sizeof(outplain);
 	
     int ret = 0;
 	
@@ -1339,7 +1343,28 @@ void sm2_test_threshold_decrypt()
        return ;
     }
 	
-   
+       //send Ta to B
+    ret = sm2_threshold_partB_dec(b_prikey, b_prikey_len, txt_a, txt_a_len, txt_b, &txt_b_len);
+    if(ret)
+    {
+       printf("sm2 decrypt using b prikey \n");
+       return ;
+    }
+    
+    //
+    ret = sm2_threshold_partA_dec2(txt_b, txt_b_len, cipherTxtC1, 32, cipherTxtC2, strlen(plain), outplain, &outplainlen);
+    if(ret)
+    {
+       printf("sm2 decrypt again using a prikey \n");
+       return ;
+    }
+
+    if(memcmp(outplain, plain, outplainlen) != 0)
+    {
+       printf("partA && partB decrypt error \n");
+       return ;
+    }
+    
     
     sm2_release();
    

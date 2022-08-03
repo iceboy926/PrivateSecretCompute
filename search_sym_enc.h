@@ -9,17 +9,15 @@
 #ifndef search_sym_enc_h
 #define search_sym_enc_h
 
-#ifdef __cplusplus
-extern "C" {
-#endif
-    #include <stdio.h>
-    
-   void test_symmetric_searchable_encryption();
-    
-#ifdef __cplusplus
-}
-#endif
+#include <stdio.h>
+#include <string>
+#include <vector>
+#include <map>
 
+using namespace std;
+    
 
+void test_symmetric_searchable_encryption();
+    
 
 #endif /* search_sym_enc_h */

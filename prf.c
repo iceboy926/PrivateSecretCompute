@@ -38,11 +38,13 @@ int hash_mac(unsigned char *outdata, unsigned char *key, int keylen, unsigned ch
     unsigned char tk[35] = {0};
     int i = 0;
     unsigned int tklen = sizeof(tk);
+    unsigned char digest[33] = {0};
+    unsigned int digestlen = sizeof(digest);
     
      /* if key is longer than 64 bytes reset it to key=sm3(key) */
     if (keylen > 64){
         
-        jvc_sm3(key, keylen, tk, &tklen)
+        jvc_sm3(key, keylen, tk, &tklen);
 
         key = tk;
         keylen = 32;
@@ -73,25 +75,65 @@ int hash_mac(unsigned char *outdata, unsigned char *key, int keylen, unsigned ch
     * perform inner SM3
     * SM3(K XOR ipad, text)
     */
-
+    jvc_sm3_update(k_ipad, 64, txt, txtlen, digest, &digestlen);
 
     /*
     * perform outer SM3
+    * SM3(K XOR opad, digest)
     */
-
+    
+    jvc_sm3_update(k_opad, 64, digest, digestlen, outdata, &digestlen);
    
     return 0;
 }
 
+// A(0) = seed
+// A(1) = HMAC_hash(secret, A(0))
+//P_hash(secret, seed) = HMAC_hash(secret, A(1) + seed) +HMAC_hash(secret, A(2) + seed) +HMAC_hash(secret, A(3) + seed) + ...
 int  prf(/*out*/unsigned char *outdata, /*in*/int outlen, /*in*/unsigned char *secret, /*in*/ int secretlen, /*in*/unsigned char *seed, /*in*/ int seedlen)
 {
-	int ct;
-	unsigned char T[1024];
-	unsigned int T_len = sizeof(T);
+	int ct, i, left;
+	//unsigned char T[1024];
+	//unsigned int T_len = sizeof(T);
+	unsigned char A_Temp[1024] = {0};
+	int a_temp_len = sizeof(A_Temp);
+	unsigned char digest[33] = {0};
+	unsigned char *pOut = outdata;
+
 
 	ct = outlen/SM3_DIGEST_LEN;
 
+    left = outlen%SM3_DIGEST_LEN;
 
+    //
+    if(seedlen > sizeof(A_Temp)-32)
+    {
+        return -1;
+    }
+
+    memcpy(A_Temp, seed, seedlen);
+    a_temp_len = seedlen;
+    
+    for(i =0; i < ct; i++)
+    {
+    	memset(digest, 0, sizeof(digest));
+        hash_mac(digest, secret, secretlen, A_Temp, a_temp_len);
+        memset(A_Temp, 0, sizeof(A_Temp));
+        a_temp_len = 0;
+        memcpy(A_Temp, digest, 32);
+        memcpy(A_Temp + 32, seed, seedlen);
+        a_temp_len = 32 + seedlen;
+        memcpy(pOut, digest, 32);
+        pOut += 32;
+
+    }
+    
+    if(left)
+    {
+    	hash_mac(digest, secret, secretlen, A_Temp, a_temp_len);
+    	memcpy(pOut, digest, left);
+    }
+    
 
 	return 0;
 }

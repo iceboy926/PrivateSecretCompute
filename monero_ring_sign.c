@@ -29,7 +29,8 @@ typedef BYTE  PLAIN[32];    // 32byte plain
 
 extern void print_hex(uint8_t *label, uint8_t *data, uint16_t data_len);
 
-void printECPoint(EC_SM2_POINT *point)
+extern void printECPoint(EC_SM2_POINT *point)
+    /*
 {
     BIGNUM *kt = BN_new();
     BIGNUM *x = BN_new();
@@ -50,7 +51,7 @@ void printECPoint(EC_SM2_POINT *point)
     BN_free(x);
     BN_free(y);
 }
-
+*/
 //generate signer keypair (ai, Ai)  user include (0,1,2, ..., n-1)
 // generate other n-1 pubkey A0,A1,A2, ..Ai-1,..Ai+1..,An-1
 

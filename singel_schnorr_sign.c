@@ -23,14 +23,15 @@
 
 extern void print_hex(uint8_t *label, uint8_t *data, uint16_t data_len);
 extern void printECPoint(EC_SM2_POINT *point);
-void printBigNum(BIGNUM big)
+extern void printBigNum(BIGNUM big);
+/*
 {
     char *str;
     str = BN_bn2hex(&big);
     printf("bignum is : %s\n",str);
     free(str);
 }
-
+*/
 
 int schnorr_genkeypair(unsigned char *prikey, unsigned int *prikeylen, unsigned char *pubkey, unsigned int *pubkeylen)
 {
